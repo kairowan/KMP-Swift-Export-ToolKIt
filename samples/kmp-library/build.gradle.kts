@@ -1,0 +1,52 @@
+plugins {
+    id("io.github.haonan.kmp.apple.packager")
+}
+
+group = "com.example"
+version = "0.1.0"
+
+kmpApplePackager {
+    packageName.set("Shared")
+    version.set(project.version.toString())
+    artifactModule.set(":shared")
+    githubRepo.set(
+        providers.environmentVariable("GITHUB_REPOSITORY").orElse("yourname/shared-package")
+    )
+    minimumIosVersion.set("16.0")
+    manifestRepository.set(
+        providers.gradleProperty("kmp.apple.packager.manifestRepository")
+            .orElse("")
+    )
+    manifestRepositoryPath.set(
+        providers.gradleProperty("kmp.apple.packager.manifestRepositoryPath")
+            .orElse("")
+    )
+    manifestRepositoryBranch.set(
+        providers.gradleProperty("kmp.apple.packager.manifestRepositoryBranch")
+            .orElse("main")
+    )
+    manifestRepositorySubdirectory.set(
+        providers.gradleProperty("kmp.apple.packager.manifestRepositorySubdirectory")
+            .orElse("")
+    )
+    publishRelease.set(
+        providers.gradleProperty("kmp.apple.packager.publishRelease")
+            .map(String::toBoolean)
+            .orElse(false)
+    )
+    publishManifestRepository.set(
+        providers.gradleProperty("kmp.apple.packager.publishManifestRepository")
+            .map(String::toBoolean)
+            .orElse(false)
+    )
+    pushManifestRepository.set(
+        providers.gradleProperty("kmp.apple.packager.pushManifestRepository")
+            .map(String::toBoolean)
+            .orElse(false)
+    )
+    validatePackage.set(
+        providers.gradleProperty("kmp.apple.packager.validatePackage")
+            .map(String::toBoolean)
+            .orElse(false)
+    )
+}

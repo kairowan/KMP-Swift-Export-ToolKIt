@@ -1,0 +1,24 @@
+package io.github.haonan.kmp.apple.packager.internal
+
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
+class ManifestRendererTest {
+    @Test
+    fun `renders binary target manifest`() {
+        val manifest = ManifestRenderer.render(
+            PackageManifestSpec(
+                packageName = "Shared",
+                swiftToolsVersion = "6.0",
+                minimumIosVersion = "16.0",
+                artifactUrl = "https://github.com/example/shared/releases/download/0.1.0/Shared-0.1.0.xcframework.zip",
+                checksum = "abc123",
+            )
+        )
+
+        assertTrue(manifest.contains("// swift-tools-version:6.0"))
+        assertTrue(manifest.contains(".iOS(\"16.0\")"))
+        assertTrue(manifest.contains("name: \"Shared\""))
+        assertTrue(manifest.contains("checksum: \"abc123\""))
+    }
+}

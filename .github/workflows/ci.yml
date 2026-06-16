@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  plugin-and-sample:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Validate wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Build plugin
+        run: ./gradlew :plugin:check
+
+      - name: Dry-run sample packager
+        run: ./gradlew -p samples/kmp-library publishApplePackage
+
+      - name: Dry-run manifest repository sync
+        run: |
+          temp_repo="$(mktemp -d)"
+          git init -b main "$temp_repo"
+          printf '# Manifest Repo\n' > "$temp_repo/README.md"
+          git -C "$temp_repo" add README.md
+          git -C "$temp_repo" -c user.name='CI Bot' -c user.email='ci@example.com' commit -m 'Initial commit'
+
+          ./gradlew -p samples/kmp-library publishApplePackage \
+            -Pkmp.apple.packager.publishManifestRepository=true \
+            -Pkmp.apple.packager.manifestRepositoryPath="$temp_repo" \
+            -Pkmp.apple.packager.manifestRepositoryBranch=main
+
+          test -f "$temp_repo/Package.swift"
+          swift package dump-package --package-path "$temp_repo"
+
+      - name: SwiftPM manifest syntax check
+        run: swift package dump-package
+        working-directory: samples/kmp-library/build/kmpApplePackager/package

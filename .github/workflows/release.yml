@@ -1,0 +1,99 @@
+name: Sample Release
+
+on:
+  push:
+    tags:
+      - "sample-v*"
+  workflow_dispatch:
+    inputs:
+      publish_manifest_repository:
+        description: "Also publish Package.swift into a dedicated repo or branch"
+        required: false
+        type: boolean
+        default: false
+      manifest_repository:
+        description: "Optional owner/repo for a separate manifest repository"
+        required: false
+        type: string
+      manifest_repository_branch:
+        description: "Branch to commit Package.swift into"
+        required: false
+        type: string
+        default: "main"
+      manifest_repository_subdirectory:
+        description: "Optional subdirectory inside the manifest repository"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  publish-sample-xcframework:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    env:
+      PUBLISH_MANIFEST_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_manifest_repository || 'false' }}
+      MANIFEST_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.manifest_repository || '' }}
+      MANIFEST_REPOSITORY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.manifest_repository_branch || 'main' }}
+      MANIFEST_REPOSITORY_SUBDIRECTORY: ${{ github.event_name == 'workflow_dispatch' && inputs.manifest_repository_subdirectory || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Validate external manifest repository token
+        if: env.PUBLISH_MANIFEST_REPOSITORY == 'true' && env.MANIFEST_REPOSITORY != '' && secrets.MANIFEST_REPOSITORY_TOKEN == ''
+        run: |
+          echo "MANIFEST_REPOSITORY_TOKEN is required when publishing Package.swift to a separate repository."
+          exit 1
+
+      - name: Checkout manifest repository from current repo
+        if: env.PUBLISH_MANIFEST_REPOSITORY == 'true' && env.MANIFEST_REPOSITORY == ''
+        uses: actions/checkout@v4
+        with:
+          path: manifest-repo
+          fetch-depth: 0
+
+      - name: Checkout external manifest repository
+        if: env.PUBLISH_MANIFEST_REPOSITORY == 'true' && env.MANIFEST_REPOSITORY != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MANIFEST_REPOSITORY }}
+          token: ${{ secrets.MANIFEST_REPOSITORY_TOKEN }}
+          path: manifest-repo
+          fetch-depth: 0
+
+      - name: Publish sample package
+        run: |
+          manifest_repo_args=()
+          if [ "${PUBLISH_MANIFEST_REPOSITORY}" = "true" ]; then
+            manifest_repo_args+=(
+              "-Pkmp.apple.packager.publishManifestRepository=true"
+              "-Pkmp.apple.packager.pushManifestRepository=true"
+              "-Pkmp.apple.packager.manifestRepositoryPath=${GITHUB_WORKSPACE}/manifest-repo"
+              "-Pkmp.apple.packager.manifestRepositoryBranch=${MANIFEST_REPOSITORY_BRANCH}"
+              "-Pkmp.apple.packager.manifestRepositorySubdirectory=${MANIFEST_REPOSITORY_SUBDIRECTORY}"
+            )
+          fi
+
+          ./gradlew -p samples/kmp-library publishApplePackage \
+            -Pkmp.apple.packager.publishRelease=true \
+            -Pkmp.apple.packager.validatePackage=true \
+            "${manifest_repo_args[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate published manifest repository
+        if: env.PUBLISH_MANIFEST_REPOSITORY == 'true'
+        run: swift package dump-package
+        working-directory: manifest-repo
