@@ -8,9 +8,19 @@ package io.github.haonan.kmp.apple.packager.internal
 internal data class PackageManifestSpec(
     val packageName: String,
     val swiftToolsVersion: String,
-    val minimumIosVersion: String,
+    val platforms: List<SwiftPackagePlatformSpec>,
     val artifactUrl: String,
     val checksum: String,
+)
+
+/**
+ * Represents a single platform declaration inside the generated Swift package manifest.
+ *
+ * Author: kairowan
+ */
+internal data class SwiftPackagePlatformSpec(
+    val swiftPlatformName: String,
+    val minimumVersion: String,
 )
 
 /**
@@ -20,29 +30,32 @@ internal data class PackageManifestSpec(
  */
 internal object ManifestRenderer {
     fun render(spec: PackageManifestSpec): String {
-        return """
-            // swift-tools-version:${spec.swiftToolsVersion}
-            import PackageDescription
-
-            let package = Package(
-                name: "${spec.packageName}",
-                platforms: [
-                    .iOS("${spec.minimumIosVersion}")
-                ],
-                products: [
-                    .library(
-                        name: "${spec.packageName}",
-                        targets: ["${spec.packageName}"]
-                    )
-                ],
-                targets: [
-                    .binaryTarget(
-                        name: "${spec.packageName}",
-                        url: "${spec.artifactUrl}",
-                        checksum: "${spec.checksum}"
-                    )
-                ]
-            )
-        """.trimIndent() + "\n"
+        return buildString {
+            appendLine("// swift-tools-version:${spec.swiftToolsVersion}")
+            appendLine("import PackageDescription")
+            appendLine()
+            appendLine("let package = Package(")
+            appendLine("    name: \"${spec.packageName}\",")
+            appendLine("    platforms: [")
+            spec.platforms.forEachIndexed { index, platform ->
+                val suffix = if (index == spec.platforms.lastIndex) "" else ","
+                appendLine("        .${platform.swiftPlatformName}(\"${platform.minimumVersion}\")$suffix")
+            }
+            appendLine("    ],")
+            appendLine("    products: [")
+            appendLine("        .library(")
+            appendLine("            name: \"${spec.packageName}\",")
+            appendLine("            targets: [\"${spec.packageName}\"]")
+            appendLine("        )")
+            appendLine("    ],")
+            appendLine("    targets: [")
+            appendLine("        .binaryTarget(")
+            appendLine("            name: \"${spec.packageName}\",")
+            appendLine("            url: \"${spec.artifactUrl}\",")
+            appendLine("            checksum: \"${spec.checksum}\"")
+            appendLine("        )")
+            appendLine("    ]")
+            appendLine(")")
+        }
     }
 }

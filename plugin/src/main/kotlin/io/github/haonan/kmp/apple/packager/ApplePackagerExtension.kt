@@ -20,6 +20,11 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val iosTargets: ListProperty<String>
     abstract val swiftToolsVersion: Property<String>
     abstract val minimumIosVersion: Property<String>
+    abstract val minimumMacosVersion: Property<String>
+    abstract val minimumTvosVersion: Property<String>
+    abstract val minimumWatchosVersion: Property<String>
+    abstract val minimumVisionosVersion: Property<String>
+    abstract val minimumMacCatalystVersion: Property<String>
     abstract val xcodeConfiguration: Property<String>
     abstract val assembleTaskName: Property<String>
     abstract val githubRepo: Property<String>
@@ -45,6 +50,11 @@ abstract class ApplePackagerExtension @Inject constructor(
         iosTargets.convention(listOf("iosArm64", "iosSimulatorArm64"))
         swiftToolsVersion.convention("6.0")
         minimumIosVersion.convention("16.0")
+        minimumMacosVersion.convention("")
+        minimumTvosVersion.convention("")
+        minimumWatchosVersion.convention("")
+        minimumVisionosVersion.convention("")
+        minimumMacCatalystVersion.convention("")
         xcodeConfiguration.convention("release")
         githubToken.convention(providers.environmentVariable("GITHUB_TOKEN"))
         publishRelease.convention(true)

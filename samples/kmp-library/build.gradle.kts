@@ -12,7 +12,30 @@ kmpApplePackager {
     githubRepo.set(
         providers.environmentVariable("GITHUB_REPOSITORY").orElse("yourname/shared-package")
     )
-    minimumIosVersion.set("16.0")
+    minimumIosVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumIosVersion")
+            .orElse("16.0")
+    )
+    minimumMacosVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumMacosVersion")
+            .orElse("")
+    )
+    minimumTvosVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumTvosVersion")
+            .orElse("")
+    )
+    minimumWatchosVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumWatchosVersion")
+            .orElse("")
+    )
+    minimumVisionosVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumVisionosVersion")
+            .orElse("")
+    )
+    minimumMacCatalystVersion.set(
+        providers.gradleProperty("kmp.apple.packager.minimumMacCatalystVersion")
+            .orElse("")
+    )
     manifestRepository.set(
         providers.gradleProperty("kmp.apple.packager.manifestRepository")
             .orElse("")

@@ -25,5 +25,9 @@ kmpApplePackager {
 
 ## Which Apple targets are expected?
 
-The MVP defaults to `iosArm64` and `iosSimulatorArm64`, but the release pipeline is driven by the generated XCFramework rather than by target introspection.
+The sample defaults to `iosArm64` and `iosSimulatorArm64`, but the release pipeline is driven by the generated XCFramework rather than by target introspection.
 
+The generated `Package.swift` now supports extra deployment target declarations through
+`minimumMacosVersion`, `minimumTvosVersion`, `minimumWatchosVersion`,
+`minimumVisionosVersion`, and `minimumMacCatalystVersion`. Only configure the platforms
+that are actually present in the XCFramework you ship.

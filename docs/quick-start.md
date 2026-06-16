@@ -40,6 +40,7 @@ kmpApplePackager {
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
     minimumIosVersion.set("16.0")
+    minimumMacosVersion.set("13.0")
 }
 ```
 
@@ -48,6 +49,10 @@ By default the plugin expects the KMP module to expose the Gradle task `assemble
 If `manifestRepository` is configured, the plugin can also commit the generated `Package.swift`
 into a dedicated repository or branch. Keep `publishManifestRepository=false` for local dry-runs,
 and set `pushManifestRepository=true` only when you are ready to update the remote branch.
+
+Additional SwiftPM deployment targets are optional. You can also set
+`minimumTvosVersion`, `minimumWatchosVersion`, `minimumVisionosVersion`, and
+`minimumMacCatalystVersion` when your XCFramework includes those platform slices.
 
 ## 4. Publish
 

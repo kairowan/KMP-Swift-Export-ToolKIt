@@ -27,6 +27,29 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
     abstract val packageVersion: Property<String>
 
     @get:Input
+    abstract val minimumIosVersion: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val minimumMacosVersion: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val minimumTvosVersion: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val minimumWatchosVersion: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val minimumVisionosVersion: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val minimumMacCatalystVersion: Property<String>
+
+    @get:Input
     @get:Optional
     abstract val artifactUrlOverride: Property<String>
 
@@ -76,6 +99,14 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         val manifestRepositoryBranch = readProperty(manifestRepositoryMetadataFile.get().asFile, "branch").orEmpty()
         val manifestRepositoryPushed = readProperty(manifestRepositoryMetadataFile.get().asFile, "pushed") ?: "unknown"
         val validationStatus = readProperty(validationReportFile.get().asFile, "status") ?: "unknown"
+        val platforms = buildList {
+            minimumIosVersion.orNull.toPlatformSummary("iOS")?.let(::add)
+            minimumMacosVersion.orNull.toPlatformSummary("macOS")?.let(::add)
+            minimumTvosVersion.orNull.toPlatformSummary("tvOS")?.let(::add)
+            minimumWatchosVersion.orNull.toPlatformSummary("watchOS")?.let(::add)
+            minimumVisionosVersion.orNull.toPlatformSummary("visionOS")?.let(::add)
+            minimumMacCatalystVersion.orNull.toPlatformSummary("macCatalyst")?.let(::add)
+        }.joinToString(", ")
 
         logger.lifecycle(
             """
@@ -84,6 +115,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |version: ${packageVersion.get()}
             |checksum: $checksum
             |artifactUrl: $artifactUrl
+            |platforms: $platforms
             |manifest: ${manifestFile.get().asFile.absolutePath}
             |published: $published
             |manifestRepositoryStatus: $manifestRepositoryStatus
@@ -102,5 +134,13 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         return file.readLines()
             .firstOrNull { line -> line.startsWith("$key=") }
             ?.substringAfter("=")
+    }
+
+    private fun String?.toPlatformSummary(swiftPlatformName: String): String? {
+        val version = this?.trim().orEmpty()
+        if (version.isEmpty()) {
+            return null
+        }
+        return "$swiftPlatformName $version"
     }
 }
