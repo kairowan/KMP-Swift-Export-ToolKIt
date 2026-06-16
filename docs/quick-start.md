@@ -41,6 +41,7 @@ kmpApplePackager {
     manifestRepositoryBranch.set("main")
     minimumIosVersion.set("16.0")
     minimumMacosVersion.set("13.0")
+    swiftExecutable.set("swift")
 }
 ```
 
@@ -64,10 +65,12 @@ GITHUB_TOKEN=ghp_your_token ./gradlew publishApplePackage
 
 The plugin writes artifacts into `build/kmpApplePackager/`:
 
+- `configuration/report.properties`
 - `xcframework/`
 - `distributions/`
 - `checksum/`
 - `package/Package.swift`
+- `metadata/package-metadata.json`
 - `release/publish.properties`
 - `packageRepository/publish.properties`
 - `validation/report.properties`

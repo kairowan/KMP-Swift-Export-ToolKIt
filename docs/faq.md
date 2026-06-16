@@ -23,6 +23,16 @@ kmpApplePackager {
 }
 ```
 
+## Can I customize the Swift executable used for validation?
+
+Yes.
+
+```kotlin
+kmpApplePackager {
+    swiftExecutable.set("/usr/bin/swift")
+}
+```
+
 ## Which Apple targets are expected?
 
 The sample defaults to `iosArm64` and `iosSimulatorArm64`, but the release pipeline is driven by the generated XCFramework rather than by target introspection.

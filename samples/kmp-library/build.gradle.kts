@@ -36,6 +36,10 @@ kmpApplePackager {
         providers.gradleProperty("kmp.apple.packager.minimumMacCatalystVersion")
             .orElse("")
     )
+    swiftExecutable.set(
+        providers.gradleProperty("kmp.apple.packager.swiftExecutable")
+            .orElse("swift")
+    )
     manifestRepository.set(
         providers.gradleProperty("kmp.apple.packager.manifestRepository")
             .orElse("")

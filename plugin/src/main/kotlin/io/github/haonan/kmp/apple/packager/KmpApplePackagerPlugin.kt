@@ -6,7 +6,9 @@ import io.github.haonan.kmp.apple.packager.tasks.GeneratePackageManifestTask
 import io.github.haonan.kmp.apple.packager.tasks.PrintReleaseSummaryTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishGithubReleaseTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishPackageManifestRepositoryTask
+import io.github.haonan.kmp.apple.packager.tasks.ValidateApplePackagerConfigurationTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateSwiftPmTask
+import io.github.haonan.kmp.apple.packager.tasks.WritePackageMetadataTask
 import io.github.haonan.kmp.apple.packager.tasks.ZipArtifactTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -57,11 +59,47 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             "kmpApplePackager/packageRepository/publish.properties"
         )
         val validationReportOutputFile = layout.buildDirectory.file("kmpApplePackager/validation/report.properties")
+        val configurationValidationReportOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/configuration/report.properties"
+        )
+        val metadataOutputFile = layout.buildDirectory.file("kmpApplePackager/metadata/package-metadata.json")
+
+        val configurationValidationTask = tasks.register(
+            "validateApplePackagerConfiguration",
+            ValidateApplePackagerConfigurationTask::class.java,
+        )
+        configurationValidationTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Validates the KMP Apple Packager configuration before expensive release tasks run."
+            task.packageName.set(extension.packageName)
+            task.packageVersion.set(extension.version)
+            task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubRepo.set(extension.githubRepo)
+            task.githubTag.set(extension.githubTag)
+            task.githubTokenConfigured.set(extension.githubToken.map(String::isNotBlank).orElse(false))
+            task.manifestRepository.set(extension.manifestRepository)
+            task.manifestRepositoryPath.set(extension.manifestRepositoryPath)
+            task.manifestRepositoryBranch.set(extension.manifestRepositoryBranch)
+            task.manifestRepositorySubdirectory.set(extension.manifestRepositorySubdirectory)
+            task.publishRelease.set(extension.publishRelease)
+            task.publishManifestRepository.set(extension.publishManifestRepository)
+            task.pushManifestRepository.set(extension.pushManifestRepository)
+            task.validatePackage.set(extension.validatePackage)
+            task.swiftExecutable.set(extension.swiftExecutable)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
+            task.validationReportFile.set(configurationValidationReportOutputFile)
+        }
 
         val assembleTask = tasks.register("assembleAppleXCFramework", AssembleXCFrameworkTask::class.java)
         assembleTask.configure { task ->
             task.group = taskGroup
             task.description = "Copies the release XCFramework assembled by the KMP module into a stable output directory."
+            task.dependsOn(configurationValidationTask)
             task.artifactModule.set(extension.artifactModule)
             task.packageName.set(extension.packageName)
             task.xcodeConfiguration.set(extension.xcodeConfiguration)
@@ -90,6 +128,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         manifestTask.configure { task ->
             task.group = taskGroup
             task.description = "Generates Package.swift for the binary XCFramework release."
+            task.dependsOn(configurationValidationTask)
             task.dependsOn(checksumTask)
             task.packageName.set(extension.packageName)
             task.swiftToolsVersion.set(extension.swiftToolsVersion)
@@ -111,6 +150,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         publishTask.configure { task ->
             task.group = taskGroup
             task.description = "Creates or reuses a GitHub release and uploads the XCFramework archive."
+            task.dependsOn(configurationValidationTask)
             task.dependsOn(zipTask)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
@@ -129,6 +169,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         publishManifestRepositoryTask.configure { task ->
             task.group = taskGroup
             task.description = "Copies Package.swift into a dedicated repository or branch and optionally pushes it."
+            task.dependsOn(configurationValidationTask)
             task.dependsOn(manifestTask, publishTask)
             task.packageName.set(extension.packageName)
             task.packageVersion.set(extension.version)
@@ -148,19 +189,53 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         validateTask.configure { task ->
             task.group = taskGroup
             task.description = "Validates the generated Package.swift with swift package commands."
+            task.dependsOn(configurationValidationTask)
             task.dependsOn(manifestTask, publishTask)
             task.validatePackage.set(extension.validatePackage)
+            task.swiftExecutable.set(extension.swiftExecutable)
             task.manifestFile.set(manifestOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
+        }
+
+        val metadataTask = tasks.register("writeApplePackageMetadata", WritePackageMetadataTask::class.java)
+        metadataTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Writes a machine-readable JSON summary of the generated package outputs."
+            task.dependsOn(configurationValidationTask, manifestTask, publishTask, publishManifestRepositoryTask, validateTask)
+            task.packageName.set(extension.packageName)
+            task.packageVersion.set(extension.version)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
+            task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubRepo.set(extension.githubRepo)
+            task.githubTag.set(extension.githubTag)
+            task.archiveFileName.set(archiveFileName)
+            task.checksumFile.set(checksumOutputFile)
+            task.manifestFile.set(manifestOutputFile)
+            task.publishMetadataFile.set(publishMetadataOutputFile)
+            task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
+            task.validationReportFile.set(validationReportOutputFile)
+            task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
+            task.metadataFile.set(metadataOutputFile)
         }
 
         val summaryTask = tasks.register("printApplePackageSummary", PrintReleaseSummaryTask::class.java)
         summaryTask.configure { task ->
             task.group = taskGroup
-            task.description = "Prints a summary of the package version, checksum, manifest, and artifact URL."
-            task.dependsOn(manifestTask, publishTask, publishManifestRepositoryTask, validateTask)
+            task.description = "Prints a summary of the package version, checksum, manifest, metadata, and artifact URL."
+            task.dependsOn(metadataTask)
             task.packageName.set(extension.packageName)
             task.packageVersion.set(extension.version)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
@@ -176,12 +251,13 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.publishMetadataFile.set(publishMetadataOutputFile)
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
+            task.metadataFile.set(metadataOutputFile)
         }
 
         val publishApplePackageTask = tasks.register("publishApplePackage")
         publishApplePackageTask.configure { task ->
             task.group = taskGroup
-            task.description = "Runs the full Apple package pipeline: assemble, zip, checksum, publish, manifest generation, validation, and summary."
+            task.description = "Runs the full Apple package pipeline: validation, assemble, zip, checksum, publish, manifest generation, metadata, validation, and summary."
             task.dependsOn(summaryTask)
         }
 

@@ -84,6 +84,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val validationReportFile: RegularFileProperty
 
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val metadataFile: RegularFileProperty
+
     @TaskAction
     fun printSummary() {
         val checksum = checksumFile.get().asFile.readText().trim()
@@ -123,6 +127,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |manifestRepositoryBranch: $manifestRepositoryBranch
             |manifestRepositoryPushed: $manifestRepositoryPushed
             |validation: $validationStatus
+            |metadata: ${metadataFile.get().asFile.absolutePath}
             """.trimMargin()
         )
     }

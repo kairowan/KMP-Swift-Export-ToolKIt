@@ -38,7 +38,17 @@ internal class GithubApi(
         )
 
         if (existingResponse.statusCode() == 200) {
-            return mapper.readValue(existingResponse.body(), GithubRelease::class.java)
+            val existingRelease = mapper.readValue(existingResponse.body(), GithubRelease::class.java)
+            val releaseBody = releaseNotes.ifBlank { null }
+            if (existingRelease.name != releaseName || existingRelease.body != releaseBody) {
+                return updateRelease(
+                    repo = repo,
+                    releaseId = existingRelease.id,
+                    releaseName = releaseName,
+                    releaseNotes = releaseNotes,
+                )
+            }
+            return existingRelease
         }
 
         if (existingResponse.statusCode() != 404) {
@@ -62,6 +72,26 @@ internal class GithubApi(
         )
 
         return mapper.readValue(createResponse.body(), GithubRelease::class.java)
+    }
+
+    private fun updateRelease(
+        repo: String,
+        releaseId: Long,
+        releaseName: String,
+        releaseNotes: String,
+    ): GithubRelease {
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "name" to releaseName,
+                "body" to releaseNotes,
+            )
+        )
+        val response = sendJsonRequest(
+            method = "PATCH",
+            url = "https://api.github.com/repos/$repo/releases/$releaseId",
+            body = payload,
+        )
+        return mapper.readValue(response.body(), GithubRelease::class.java)
     }
 
     fun deleteAsset(repo: String, assetId: Long) {
@@ -136,10 +166,13 @@ internal class GithubApi(
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 internal data class GithubRelease(
+    val id: Long,
     @JsonProperty("upload_url")
     val uploadUrl: String,
     @JsonProperty("html_url")
     val htmlUrl: String?,
+    val name: String?,
+    val body: String?,
     val assets: List<GithubAsset> = emptyList(),
 )
 

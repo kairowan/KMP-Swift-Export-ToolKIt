@@ -25,6 +25,7 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val minimumWatchosVersion: Property<String>
     abstract val minimumVisionosVersion: Property<String>
     abstract val minimumMacCatalystVersion: Property<String>
+    abstract val swiftExecutable: Property<String>
     abstract val xcodeConfiguration: Property<String>
     abstract val assembleTaskName: Property<String>
     abstract val githubRepo: Property<String>
@@ -55,6 +56,7 @@ abstract class ApplePackagerExtension @Inject constructor(
         minimumWatchosVersion.convention("")
         minimumVisionosVersion.convention("")
         minimumMacCatalystVersion.convention("")
+        swiftExecutable.convention("swift")
         xcodeConfiguration.convention("release")
         githubToken.convention(providers.environmentVariable("GITHUB_TOKEN"))
         publishRelease.convention(true)

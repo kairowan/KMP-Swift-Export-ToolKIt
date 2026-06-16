@@ -35,27 +35,42 @@ internal object ManifestRenderer {
             appendLine("import PackageDescription")
             appendLine()
             appendLine("let package = Package(")
-            appendLine("    name: \"${spec.packageName}\",")
+            appendLine("    name: \"${spec.packageName.toSwiftStringLiteral()}\",")
             appendLine("    platforms: [")
             spec.platforms.forEachIndexed { index, platform ->
                 val suffix = if (index == spec.platforms.lastIndex) "" else ","
-                appendLine("        .${platform.swiftPlatformName}(\"${platform.minimumVersion}\")$suffix")
+                appendLine("        .${platform.swiftPlatformName}(\"${platform.minimumVersion.toSwiftStringLiteral()}\")$suffix")
             }
             appendLine("    ],")
             appendLine("    products: [")
             appendLine("        .library(")
-            appendLine("            name: \"${spec.packageName}\",")
-            appendLine("            targets: [\"${spec.packageName}\"]")
+            appendLine("            name: \"${spec.packageName.toSwiftStringLiteral()}\",")
+            appendLine("            targets: [\"${spec.packageName.toSwiftStringLiteral()}\"]")
             appendLine("        )")
             appendLine("    ],")
             appendLine("    targets: [")
             appendLine("        .binaryTarget(")
-            appendLine("            name: \"${spec.packageName}\",")
-            appendLine("            url: \"${spec.artifactUrl}\",")
-            appendLine("            checksum: \"${spec.checksum}\"")
+            appendLine("            name: \"${spec.packageName.toSwiftStringLiteral()}\",")
+            appendLine("            url: \"${spec.artifactUrl.toSwiftStringLiteral()}\",")
+            appendLine("            checksum: \"${spec.checksum.toSwiftStringLiteral()}\"")
             appendLine("        )")
             appendLine("    ]")
             appendLine(")")
+        }
+    }
+
+    private fun String.toSwiftStringLiteral(): String {
+        return buildString {
+            this@toSwiftStringLiteral.forEach { character ->
+                when (character) {
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    '\t' -> append("\\t")
+                    else -> append(character)
+                }
+            }
         }
     }
 }

@@ -56,4 +56,26 @@ class ManifestRendererTest {
         assertTrue(manifest.contains(".macOS(\"13.0\")"))
         assertTrue(manifest.contains(".tvOS(\"16.0\")"))
     }
+
+    @Test
+    fun `escapes swift string literals in generated manifest`() {
+        val manifest = ManifestRenderer.render(
+            PackageManifestSpec(
+                packageName = "Shared \"Kit\"",
+                swiftToolsVersion = "6.0",
+                platforms = listOf(
+                    SwiftPackagePlatformSpec(
+                        swiftPlatformName = "iOS",
+                        minimumVersion = "16.0",
+                    )
+                ),
+                artifactUrl = "https://example.com/releases/Shared\\Kit.zip",
+                checksum = "abc\"123",
+            )
+        )
+
+        assertTrue(manifest.contains("name: \"Shared \\\"Kit\\\"\""))
+        assertTrue(manifest.contains("url: \"https://example.com/releases/Shared\\\\Kit.zip\""))
+        assertTrue(manifest.contains("checksum: \"abc\\\"123\""))
+    }
 }

@@ -93,6 +93,18 @@ jobs:
           GIT_AUTHOR_NAME: "github-actions[bot]"
           GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Upload package metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-package-metadata
+          path: |
+            samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+            samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+            samples/kmp-library/build/kmpApplePackager/release/publish.properties
+            samples/kmp-library/build/kmpApplePackager/packageRepository/publish.properties
+            samples/kmp-library/build/kmpApplePackager/validation/report.properties
+
       - name: Validate published manifest repository
         if: env.PUBLISH_MANIFEST_REPOSITORY == 'true'
         run: swift package dump-package

@@ -28,6 +28,12 @@ jobs:
       - name: Dry-run sample packager
         run: ./gradlew -p samples/kmp-library publishApplePackage
 
+      - name: Validate generated metadata
+        run: |
+          test -f samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+          test -f samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+          ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+
       - name: Dry-run manifest repository sync
         run: |
           temp_repo="$(mktemp -d)"

@@ -38,6 +38,14 @@ If you use a separate manifest repository, also provide either
 `-Pkmp.apple.packager.manifestRepository=owner/package-spm` or
 `-Pkmp.apple.packager.manifestRepositoryPath=/path/to/local/checkout`.
 
+Every run now emits:
+
+- `build/kmpApplePackager/configuration/report.properties`
+- `build/kmpApplePackager/metadata/package-metadata.json`
+
+The JSON metadata file is intended for CI consumption. It includes the resolved artifact URL,
+checksum, platform declarations, publish status, manifest repository result, and validation status.
+
 ## GitHub Actions workflow options
 
 `release.yml` now supports two manifest publishing modes:
@@ -48,3 +56,4 @@ If you use a separate manifest repository, also provide either
   Set `publish_manifest_repository=true`, provide `manifest_repository=owner/package-spm`, and store a PAT in `MANIFEST_REPOSITORY_TOKEN`.
 
 The workflow checks out the manifest destination into `manifest-repo/`, lets the plugin commit into that checkout, and then validates the resulting `Package.swift` with SwiftPM.
+It also uploads the generated metadata and report files as workflow artifacts.

@@ -26,9 +26,11 @@ This plugin turns that workflow into a repeatable release pipeline.
 - Compute SwiftPM checksums automatically
 - Generate `Package.swift` for binary targets
 - Configure SwiftPM deployment targets for iOS and additional Apple platforms
+- Fail fast on invalid publish configuration before the heavy build work starts
 - Publish archives to GitHub Releases
 - Sync `Package.swift` into a dedicated repository or release branch
 - Validate the generated manifest with `swift package`
+- Emit machine-readable release metadata for CI and downstream automation
 - Print a release summary with checksum, URL, and output paths
 
 ## Project Layout
@@ -59,6 +61,7 @@ kmpApplePackager {
     manifestRepositoryBranch.set("main")
     iosTargets.set(listOf("iosArm64", "iosSimulatorArm64"))
     minimumMacosVersion.set("13.0")
+    swiftExecutable.set("swift")
 }
 ```
 
@@ -73,10 +76,12 @@ Then run:
 - `assembleAppleXCFramework`
 - `zipAppleArtifact`
 - `computeApplePackageChecksum`
+- `validateApplePackagerConfiguration`
 - `generateApplePackageManifest`
 - `publishGithubRelease`
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
+- `writeApplePackageMetadata`
 - `publishApplePackage`
 
 ## Local MVP Notes
@@ -96,6 +101,10 @@ The sample project under `samples/kmp-library` does exactly that by default, so 
 If you add `minimumMacosVersion`, `minimumTvosVersion`, `minimumWatchosVersion`,
 `minimumVisionosVersion`, or `minimumMacCatalystVersion`, keep them aligned with the
 platform slices that actually exist inside the XCFramework you publish.
+
+Each run also writes a stable JSON metadata file at
+`build/kmpApplePackager/metadata/package-metadata.json`, which is useful for CI steps
+that need the checksum, resolved artifact URL, validation status, or manifest repo result.
 
 ## Samples
 

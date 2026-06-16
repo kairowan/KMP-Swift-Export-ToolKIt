@@ -24,9 +24,11 @@ KMP Apple Packager 是一个 Gradle 插件，用来自动完成 Apple XCFramewor
 - 自动计算 SwiftPM checksum
 - 为 binary target 生成 `Package.swift`
 - 可为 iOS 以及更多 Apple 平台声明 SwiftPM deployment target
+- 在重型构建开始前先做发布配置校验，尽早失败
 - 把归档文件发布到 GitHub Releases
 - 把 `Package.swift` 同步到独立仓库或单独发布分支
 - 用 `swift package` 校验生成出来的 manifest
+- 为 CI 和后续自动化产出机器可读的发布元数据
 - 在控制台输出版本、checksum、URL 和产物路径摘要
 
 ## 项目结构
@@ -57,6 +59,7 @@ kmpApplePackager {
     manifestRepositoryBranch.set("main")
     iosTargets.set(listOf("iosArm64", "iosSimulatorArm64"))
     minimumMacosVersion.set("13.0")
+    swiftExecutable.set("swift")
 }
 ```
 
@@ -71,10 +74,12 @@ kmpApplePackager {
 - `assembleAppleXCFramework`
 - `zipAppleArtifact`
 - `computeApplePackageChecksum`
+- `validateApplePackagerConfiguration`
 - `generateApplePackageManifest`
 - `publishGithubRelease`
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
+- `writeApplePackageMetadata`
 - `publishApplePackage`
 
 ## 本地 MVP 说明
@@ -94,6 +99,10 @@ kmpApplePackager {
 如果你继续配置了 `minimumMacosVersion`、`minimumTvosVersion`、`minimumWatchosVersion`、
 `minimumVisionosVersion` 或 `minimumMacCatalystVersion`，记得让这些声明和最终发布出去的
 XCFramework 实际包含的平台切片保持一致。
+
+每次运行还会额外生成一个稳定的 JSON 元数据文件：
+`build/kmpApplePackager/metadata/package-metadata.json`。CI 可以直接读取它来拿 checksum、
+最终 artifact URL、校验状态以及 manifest 仓库同步结果。
 
 ## 示例
 
