@@ -12,6 +12,10 @@ kmpApplePackager {
     githubRepo.set(
         providers.environmentVariable("GITHUB_REPOSITORY").orElse("yourname/shared-package")
     )
+    artifactUrlOverride.set(
+        providers.gradleProperty("kmp.apple.packager.artifactUrlOverride")
+            .orElse("")
+    )
     minimumIosVersion.set(
         providers.gradleProperty("kmp.apple.packager.minimumIosVersion")
             .orElse("16.0")
@@ -59,6 +63,21 @@ kmpApplePackager {
             .map(String::toInt)
             .orElse(2)
     )
+    verifyPublishedArtifact.set(
+        providers.gradleProperty("kmp.apple.packager.verifyPublishedArtifact")
+            .map(String::toBoolean)
+            .orElse(true)
+    )
+    artifactDownloadTimeoutSeconds.set(
+        providers.gradleProperty("kmp.apple.packager.artifactDownloadTimeoutSeconds")
+            .map(String::toInt)
+            .orElse(300)
+    )
+    artifactDownloadMaxRetries.set(
+        providers.gradleProperty("kmp.apple.packager.artifactDownloadMaxRetries")
+            .map(String::toInt)
+            .orElse(2)
+    )
     failOnDirtyManifestRepository.set(
         providers.gradleProperty("kmp.apple.packager.failOnDirtyManifestRepository")
             .map(String::toBoolean)
@@ -78,6 +97,14 @@ kmpApplePackager {
     )
     manifestRepositorySubdirectory.set(
         providers.gradleProperty("kmp.apple.packager.manifestRepositorySubdirectory")
+            .orElse("")
+    )
+    manifestCommitUserName.set(
+        providers.gradleProperty("kmp.apple.packager.manifestCommitUserName")
+            .orElse("")
+    )
+    manifestCommitUserEmail.set(
+        providers.gradleProperty("kmp.apple.packager.manifestCommitUserEmail")
             .orElse("")
     )
     publishRelease.set(

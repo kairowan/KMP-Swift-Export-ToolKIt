@@ -37,21 +37,29 @@ That command assumes the sample's `githubRepo` points at the repository running 
 If you use a separate manifest repository, also provide either
 `-Pkmp.apple.packager.manifestRepository=owner/package-spm` or
 `-Pkmp.apple.packager.manifestRepositoryPath=/path/to/local/checkout`.
+That local checkout may also be a git worktree when your release automation keeps multiple
+branches checked out side by side.
 
 Every run now emits:
 
 - `build/kmpApplePackager/configuration/report.properties`
+- `build/kmpApplePackager/artifactVerification/report.properties`
 - `build/kmpApplePackager/metadata/package-metadata.json`
 
 The JSON metadata file is intended for CI consumption. It includes the resolved artifact URL,
-checksum, platform declarations, publish status, manifest repository result, and validation status.
+checksum, platform declarations, publish status, manifest repository result, validation status,
+and artifact verification status.
 
 For more predictable production builds, consider setting:
 
 ```bash
 -Pkmp.apple.packager.commandTimeoutSeconds=600 \
 -Pkmp.apple.packager.githubRequestTimeoutSeconds=120 \
--Pkmp.apple.packager.githubMaxRetries=2
+-Pkmp.apple.packager.githubMaxRetries=2 \
+-Pkmp.apple.packager.manifestCommitUserName='CI Release Bot' \
+-Pkmp.apple.packager.manifestCommitUserEmail='ci@example.com' \
+-Pkmp.apple.packager.artifactDownloadTimeoutSeconds=300 \
+-Pkmp.apple.packager.artifactDownloadMaxRetries=2
 ```
 
 When you publish into a local manifest checkout, the default

@@ -27,7 +27,9 @@ KMP Apple Packager 是一个 Gradle 插件，用来自动完成 Apple XCFramewor
 - 在重型构建开始前先做发布配置校验，尽早失败
 - 把归档文件发布到 GitHub Releases
 - 把 `Package.swift` 同步到独立仓库或单独发布分支
+- 同步 manifest 仓库时同时支持普通 git checkout 和 git worktree
 - 用 `swift package` 校验生成出来的 manifest
+- 下载并校验最终可访问的产物，确认远端 checksum 与本地一致
 - 为 CI 和后续自动化产出机器可读的发布元数据
 - 可配置 GitHub 请求重试/超时和本地命令超时
 - 默认阻止在已有未提交改动的 manifest 仓库上继续发布
@@ -59,6 +61,8 @@ kmpApplePackager {
     githubRepo.set("yourname/shared-package")
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
+    manifestCommitUserName.set("CI Release Bot")
+    manifestCommitUserEmail.set("ci@example.com")
     iosTargets.set(listOf("iosArm64", "iosSimulatorArm64"))
     minimumMacosVersion.set("13.0")
     swiftExecutable.set("swift")
@@ -66,6 +70,9 @@ kmpApplePackager {
     commandTimeoutSeconds.set(600)
     githubRequestTimeoutSeconds.set(120)
     githubMaxRetries.set(2)
+    verifyPublishedArtifact.set(true)
+    artifactDownloadTimeoutSeconds.set(300)
+    artifactDownloadMaxRetries.set(2)
 }
 ```
 
@@ -85,6 +92,7 @@ kmpApplePackager {
 - `publishGithubRelease`
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
+- `verifyPublishedArtifact`
 - `writeApplePackageMetadata`
 - `publishApplePackage`
 
@@ -114,7 +122,13 @@ XCFramework 实际包含的平台切片保持一致。
 
 - `commandTimeoutSeconds=600`，用于 `swift`、`git`、`ditto` 这类本地命令
 - `githubRequestTimeoutSeconds=120` 且 `githubMaxRetries=2`，用于 GitHub Releases API
+- `verifyPublishedArtifact=true`，并使用 `artifactDownloadTimeoutSeconds=300`、`artifactDownloadMaxRetries=2` 做发布后下载校验
 - `failOnDirtyManifestRepository=true`，本地 manifest 仓库如果本来就有脏改动会直接拒绝继续发布
+
+如果开启 manifest 仓库发布，`manifestRepositoryPath` 现在既可以指向普通 git checkout，
+也可以指向 git worktree。插件管理的远端 checkout 会在切分支前刷新远端引用；如果没有显式
+设置 `manifestCommitUserName` 和 `manifestCommitUserEmail`，则会回退到所选 checkout 的
+`git config user.name/user.email`。
 
 ## 示例
 

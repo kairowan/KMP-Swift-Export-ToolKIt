@@ -28,6 +28,9 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val commandTimeoutSeconds: Property<Int>
     abstract val githubRequestTimeoutSeconds: Property<Int>
     abstract val githubMaxRetries: Property<Int>
+    abstract val verifyPublishedArtifact: Property<Boolean>
+    abstract val artifactDownloadTimeoutSeconds: Property<Int>
+    abstract val artifactDownloadMaxRetries: Property<Int>
     abstract val failOnDirtyManifestRepository: Property<Boolean>
     abstract val xcodeConfiguration: Property<String>
     abstract val assembleTaskName: Property<String>
@@ -64,6 +67,9 @@ abstract class ApplePackagerExtension @Inject constructor(
         commandTimeoutSeconds.convention(600)
         githubRequestTimeoutSeconds.convention(120)
         githubMaxRetries.convention(2)
+        verifyPublishedArtifact.convention(true)
+        artifactDownloadTimeoutSeconds.convention(300)
+        artifactDownloadMaxRetries.convention(2)
         failOnDirtyManifestRepository.convention(true)
         xcodeConfiguration.convention("release")
         githubToken.convention(providers.environmentVariable("GITHUB_TOKEN"))

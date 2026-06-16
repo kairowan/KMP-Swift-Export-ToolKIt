@@ -86,6 +86,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
+    abstract val artifactVerificationReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
     abstract val metadataFile: RegularFileProperty
 
     @TaskAction
@@ -101,8 +105,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         val manifestRepositoryStatus = readProperty(manifestRepositoryMetadataFile.get().asFile, "status") ?: "unknown"
         val manifestRepository = readProperty(manifestRepositoryMetadataFile.get().asFile, "repository").orEmpty()
         val manifestRepositoryBranch = readProperty(manifestRepositoryMetadataFile.get().asFile, "branch").orEmpty()
+        val manifestRepositoryRemote = readProperty(manifestRepositoryMetadataFile.get().asFile, "originRemoteUrl").orEmpty()
         val manifestRepositoryPushed = readProperty(manifestRepositoryMetadataFile.get().asFile, "pushed") ?: "unknown"
         val validationStatus = readProperty(validationReportFile.get().asFile, "status") ?: "unknown"
+        val artifactVerificationStatus = readProperty(artifactVerificationReportFile.get().asFile, "status") ?: "unknown"
         val platforms = buildList {
             minimumIosVersion.orNull.toPlatformSummary("iOS")?.let(::add)
             minimumMacosVersion.orNull.toPlatformSummary("macOS")?.let(::add)
@@ -125,8 +131,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |manifestRepositoryStatus: $manifestRepositoryStatus
             |manifestRepository: $manifestRepository
             |manifestRepositoryBranch: $manifestRepositoryBranch
+            |manifestRepositoryRemote: $manifestRepositoryRemote
             |manifestRepositoryPushed: $manifestRepositoryPushed
             |validation: $validationStatus
+            |artifactVerification: $artifactVerificationStatus
             |metadata: ${metadataFile.get().asFile.absolutePath}
             """.trimMargin()
         )

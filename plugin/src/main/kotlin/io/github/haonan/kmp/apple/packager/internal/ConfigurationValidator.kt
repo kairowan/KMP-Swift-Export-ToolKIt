@@ -18,6 +18,8 @@ internal data class ApplePackagerConfigurationSpec(
     val manifestRepositoryPath: String?,
     val manifestRepositoryBranch: String,
     val manifestRepositorySubdirectory: String,
+    val manifestCommitUserName: String?,
+    val manifestCommitUserEmail: String?,
     val publishRelease: Boolean,
     val publishManifestRepository: Boolean,
     val pushManifestRepository: Boolean,
@@ -27,6 +29,9 @@ internal data class ApplePackagerConfigurationSpec(
     val commandTimeoutSeconds: Int,
     val githubRequestTimeoutSeconds: Int,
     val githubMaxRetries: Int,
+    val verifyPublishedArtifact: Boolean,
+    val artifactDownloadTimeoutSeconds: Int,
+    val artifactDownloadMaxRetries: Int,
     val failOnDirtyManifestRepository: Boolean,
     val minimumIosVersion: String?,
     val minimumMacosVersion: String?,
@@ -81,6 +86,8 @@ internal object ConfigurationValidator {
         val manifestRepositoryPath = spec.manifestRepositoryPath.normalized()
         val manifestRepositoryBranch = spec.manifestRepositoryBranch.trim()
         val manifestRepositorySubdirectory = spec.manifestRepositorySubdirectory.trim()
+        val manifestCommitUserName = spec.manifestCommitUserName.normalized()
+        val manifestCommitUserEmail = spec.manifestCommitUserEmail.normalized()
         val swiftExecutable = spec.swiftExecutable.trim()
         val gitExecutable = spec.gitExecutable.trim()
 
@@ -116,6 +123,9 @@ internal object ConfigurationValidator {
             if (spec.githubMaxRetries < 0) {
                 errors += "githubMaxRetries must be 0 or greater."
             }
+            if (!spec.verifyPublishedArtifact) {
+                warnings += "verifyPublishedArtifact=false disables the post-publish download and checksum verification step."
+            }
             if (artifactUrlOverride.isNotEmpty()) {
                 warnings += "artifactUrlOverride is set, so the generated Package.swift will not point at the uploaded GitHub release asset."
             }
@@ -138,6 +148,9 @@ internal object ConfigurationValidator {
             if (spec.pushManifestRepository && !spec.failOnDirtyManifestRepository) {
                 warnings += "failOnDirtyManifestRepository=false allows pushing Package.swift from a checkout that may already contain unrelated local changes."
             }
+            if (manifestCommitUserName.isEmpty() || manifestCommitUserEmail.isEmpty()) {
+                warnings += "manifestCommitUserName/manifestCommitUserEmail are not fully configured; the task will fall back to git user.name/user.email from the selected checkout."
+            }
         }
 
         if (containsPathTraversal(manifestRepositorySubdirectory)) {
@@ -150,6 +163,12 @@ internal object ConfigurationValidator {
 
         if (spec.commandTimeoutSeconds <= 0) {
             errors += "commandTimeoutSeconds must be greater than 0."
+        }
+        if (spec.verifyPublishedArtifact && spec.artifactDownloadTimeoutSeconds <= 0) {
+            errors += "artifactDownloadTimeoutSeconds must be greater than 0 when verifyPublishedArtifact=true."
+        }
+        if (spec.verifyPublishedArtifact && spec.artifactDownloadMaxRetries < 0) {
+            errors += "artifactDownloadMaxRetries must be 0 or greater when verifyPublishedArtifact=true."
         }
 
         return ConfigurationValidationResult(

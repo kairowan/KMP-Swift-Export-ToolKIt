@@ -88,6 +88,10 @@ abstract class WritePackageMetadataTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
+    abstract val artifactVerificationReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
     abstract val configurationValidationReportFile: RegularFileProperty
 
     @get:OutputFile
@@ -105,6 +109,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
         val releaseMetadata = readProperties(publishMetadataFile.get().asFile)
         val manifestRepositoryMetadata = readProperties(manifestRepositoryMetadataFile.get().asFile)
         val validationMetadata = readProperties(validationReportFile.get().asFile)
+        val artifactVerificationMetadata = readProperties(artifactVerificationReportFile.get().asFile)
         val configurationMetadata = readProperties(configurationValidationReportFile.get().asFile)
 
         val metadata = PackageMetadata(
@@ -113,7 +118,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             platforms = buildPlatforms(),
             artifact = ArtifactMetadata(
                 archiveFileName = archiveFileName.get(),
-                downloadUrl = releaseMetadata["downloadUrl"] ?: artifactUrl,
+                downloadUrl = artifactUrl,
                 checksum = checksum,
             ),
             manifest = ManifestMetadata(
@@ -122,6 +127,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             release = ReleaseMetadata(
                 published = parseBoolean(releaseMetadata["published"]),
                 releaseUrl = releaseMetadata["releaseUrl"],
+                downloadUrl = releaseMetadata["downloadUrl"],
             ),
             manifestRepository = ManifestRepositoryMetadata(
                 status = manifestRepositoryMetadata["status"] ?: "unknown",
@@ -129,12 +135,24 @@ abstract class WritePackageMetadataTask : DefaultTask() {
                 branch = manifestRepositoryMetadata["branch"],
                 path = manifestRepositoryMetadata["path"],
                 commit = manifestRepositoryMetadata["commit"],
+                commitAuthorName = manifestRepositoryMetadata["commitAuthorName"],
+                commitAuthorEmail = manifestRepositoryMetadata["commitAuthorEmail"],
                 pushed = parseBoolean(manifestRepositoryMetadata["pushed"]),
+                originRemoteUrl = manifestRepositoryMetadata["originRemoteUrl"],
                 usesLocalCheckout = parseBoolean(manifestRepositoryMetadata["usesLocalCheckout"]),
             ),
             validation = ValidationMetadata(
                 status = validationMetadata["status"] ?: "unknown",
                 path = validationMetadata["path"],
+            ),
+            artifactVerification = ArtifactVerificationMetadata(
+                status = artifactVerificationMetadata["status"] ?: "unknown",
+                url = artifactVerificationMetadata["url"],
+                downloadedFile = artifactVerificationMetadata["downloadedFile"],
+                checksum = artifactVerificationMetadata["checksum"],
+                expectedChecksum = artifactVerificationMetadata["expectedChecksum"],
+                actualChecksum = artifactVerificationMetadata["actualChecksum"],
+                reason = artifactVerificationMetadata["reason"],
             ),
             configuration = ConfigurationMetadata(
                 status = configurationMetadata["status"] ?: "unknown",
@@ -217,6 +235,7 @@ internal data class PackageMetadata(
     val release: ReleaseMetadata,
     val manifestRepository: ManifestRepositoryMetadata,
     val validation: ValidationMetadata,
+    val artifactVerification: ArtifactVerificationMetadata,
     val configuration: ConfigurationMetadata,
 )
 
@@ -238,6 +257,7 @@ internal data class ManifestMetadata(
 internal data class ReleaseMetadata(
     val published: Boolean?,
     val releaseUrl: String?,
+    val downloadUrl: String?,
 )
 
 internal data class ManifestRepositoryMetadata(
@@ -246,13 +266,26 @@ internal data class ManifestRepositoryMetadata(
     val branch: String?,
     val path: String?,
     val commit: String?,
+    val commitAuthorName: String?,
+    val commitAuthorEmail: String?,
     val pushed: Boolean?,
+    val originRemoteUrl: String?,
     val usesLocalCheckout: Boolean?,
 )
 
 internal data class ValidationMetadata(
     val status: String,
     val path: String?,
+)
+
+internal data class ArtifactVerificationMetadata(
+    val status: String,
+    val url: String?,
+    val downloadedFile: String?,
+    val checksum: String?,
+    val expectedChecksum: String?,
+    val actualChecksum: String?,
+    val reason: String?,
 )
 
 internal data class ConfigurationMetadata(

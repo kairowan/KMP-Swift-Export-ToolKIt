@@ -104,11 +104,15 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         val repositorySubdirectory = manifestRepositorySubdirectory.get().trim().trim('/')
 
         val preparedRepository = if (manifestRepositoryPathValue.isNotEmpty()) {
-            val repositoryRoot = ensureGitRepository(File(manifestRepositoryPathValue).absoluteFile)
+            val repositoryRoot = ensureGitRepository(
+                repositoryRoot = File(manifestRepositoryPathValue).absoluteFile,
+                runner = runner,
+                gitExecutable = gitExecutableValue,
+            )
             PreparedRepository(
                 repositoryRoot = repositoryRoot,
                 displayLocation = repositoryRoot.absolutePath,
-                hasOriginRemote = hasOriginRemote(repositoryRoot, runner, gitExecutableValue),
+                originRemoteUrl = readOriginRemoteUrl(repositoryRoot, runner, gitExecutableValue),
                 usesLocalCheckout = true,
             )
         } else {
@@ -125,9 +129,15 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             PreparedRepository(
                 repositoryRoot = checkoutDirectory,
                 displayLocation = reference.displayLocation,
-                hasOriginRemote = true,
+                originRemoteUrl = readOriginRemoteUrl(checkoutDirectory, runner, gitExecutableValue),
                 usesLocalCheckout = false,
             )
+        }
+
+        if ((!preparedRepository.usesLocalCheckout || pushManifestRepository.get()) &&
+            preparedRepository.originRemoteUrl != null
+        ) {
+            refreshOriginRemote(preparedRepository.repositoryRoot, runner, gitExecutableValue)
         }
 
         if (preparedRepository.usesLocalCheckout && failOnDirtyManifestRepository.get()) {
@@ -172,6 +182,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
                     appendLine("branch=$repositoryBranch")
                     appendLine("path=${targetFile.absolutePath}")
                     appendLine("pushed=false")
+                    appendLine("originRemoteUrl=${preparedRepository.originRemoteUrl.orEmpty()}")
                     appendLine("usesLocalCheckout=${preparedRepository.usesLocalCheckout}")
                 }
             )
@@ -179,17 +190,23 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             return
         }
 
+        val commitIdentity = resolveCommitIdentity(
+            repositoryRoot = preparedRepository.repositoryRoot,
+            runner = runner,
+            gitExecutable = gitExecutableValue,
+        )
+        logger.lifecycle(
+            "Using manifest repository git identity ${commitIdentity.name} <${commitIdentity.email}>"
+        )
         val commitCommand = mutableListOf(
             gitExecutableValue,
             "-C",
             preparedRepository.repositoryRoot.absolutePath,
+            "-c",
+            "user.name=${commitIdentity.name}",
+            "-c",
+            "user.email=${commitIdentity.email}",
         )
-        manifestCommitUserName.orNull?.trim()?.takeIf(String::isNotEmpty)?.let { name ->
-            commitCommand += listOf("-c", "user.name=$name")
-        }
-        manifestCommitUserEmail.orNull?.trim()?.takeIf(String::isNotEmpty)?.let { email ->
-            commitCommand += listOf("-c", "user.email=$email")
-        }
         commitCommand += listOf(
             "commit",
             "-m",
@@ -211,7 +228,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
 
         var pushed = false
         if (pushManifestRepository.get()) {
-            if (!preparedRepository.hasOriginRemote) {
+            if (preparedRepository.originRemoteUrl == null) {
                 throw GradleException(
                     "Cannot push manifest repository changes because the selected checkout has no origin remote."
                 )
@@ -236,7 +253,10 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
                 appendLine("branch=$repositoryBranch")
                 appendLine("path=${targetFile.absolutePath}")
                 appendLine("commit=$commitSha")
+                appendLine("commitAuthorName=${commitIdentity.name}")
+                appendLine("commitAuthorEmail=${commitIdentity.email}")
                 appendLine("pushed=$pushed")
+                appendLine("originRemoteUrl=${preparedRepository.originRemoteUrl.orEmpty()}")
                 appendLine("usesLocalCheckout=${preparedRepository.usesLocalCheckout}")
             }
         )
@@ -246,13 +266,35 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         )
     }
 
-    private fun ensureGitRepository(repositoryRoot: File): File {
-        if (!File(repositoryRoot, ".git").exists()) {
+    private fun ensureGitRepository(
+        repositoryRoot: File,
+        runner: ProcessRunner,
+        gitExecutable: String,
+    ): File {
+        if (!repositoryRoot.exists()) {
             throw GradleException(
-                "Expected manifestRepositoryPath to point at a git checkout, but no .git directory was found at ${repositoryRoot.absolutePath}."
+                "Expected manifestRepositoryPath to point at an existing git checkout, but ${repositoryRoot.absolutePath} does not exist."
             )
         }
-        return repositoryRoot
+        val topLevel = runCatching {
+            runner.run(
+                listOf(
+                    gitExecutable,
+                    "-C",
+                    repositoryRoot.absolutePath,
+                    "rev-parse",
+                    "--show-toplevel",
+                )
+            ).stdout
+        }.getOrNull()
+
+        if (topLevel.isNullOrBlank()) {
+            throw GradleException(
+                "Expected manifestRepositoryPath to point at a git checkout or git worktree, but git could not resolve a repository at ${repositoryRoot.absolutePath}."
+            )
+        }
+
+        return File(topLevel).absoluteFile
     }
 
     private fun prepareRemoteCheckout(
@@ -384,11 +426,11 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         ).stdout
     }
 
-    private fun hasOriginRemote(
+    private fun readOriginRemoteUrl(
         repositoryRoot: File,
         runner: ProcessRunner,
         gitExecutable: String,
-    ): Boolean {
+    ): String? {
         return runCatching {
             runner.run(
                 listOf(
@@ -399,8 +441,72 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
                     "get-url",
                     "origin",
                 )
+            ).stdout
+        }.getOrNull()?.takeIf(String::isNotBlank)
+    }
+
+    private fun refreshOriginRemote(
+        repositoryRoot: File,
+        runner: ProcessRunner,
+        gitExecutable: String,
+    ) {
+        runner.run(
+            listOf(
+                gitExecutable,
+                "-C",
+                repositoryRoot.absolutePath,
+                "fetch",
+                "--prune",
+                "origin",
             )
-        }.isSuccess
+        )
+    }
+
+    private fun resolveCommitIdentity(
+        repositoryRoot: File,
+        runner: ProcessRunner,
+        gitExecutable: String,
+    ): CommitIdentity {
+        val resolvedName = manifestCommitUserName.orNull?.trim().orEmpty().ifEmpty {
+            readGitConfig(repositoryRoot, "user.name", runner, gitExecutable).orEmpty()
+        }
+        val resolvedEmail = manifestCommitUserEmail.orNull?.trim().orEmpty().ifEmpty {
+            readGitConfig(repositoryRoot, "user.email", runner, gitExecutable).orEmpty()
+        }
+
+        if (resolvedName.isEmpty() || resolvedEmail.isEmpty()) {
+            throw GradleException(
+                "Unable to resolve the git commit identity for manifest repository publishing at " +
+                    "${repositoryRoot.absolutePath}. Configure kmpApplePackager.manifestCommitUserName " +
+                    "and kmpApplePackager.manifestCommitUserEmail, or set git user.name and user.email " +
+                    "for the selected checkout."
+            )
+        }
+
+        return CommitIdentity(
+            name = resolvedName,
+            email = resolvedEmail,
+        )
+    }
+
+    private fun readGitConfig(
+        repositoryRoot: File,
+        key: String,
+        runner: ProcessRunner,
+        gitExecutable: String,
+    ): String? {
+        return runCatching {
+            runner.run(
+                listOf(
+                    gitExecutable,
+                    "-C",
+                    repositoryRoot.absolutePath,
+                    "config",
+                    "--get",
+                    key,
+                )
+            ).stdout
+        }.getOrNull()?.takeIf(String::isNotBlank)
     }
 
     private fun ensureCleanWorkingTree(
@@ -432,6 +538,11 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
 private data class PreparedRepository(
     val repositoryRoot: File,
     val displayLocation: String,
-    val hasOriginRemote: Boolean,
+    val originRemoteUrl: String?,
     val usesLocalCheckout: Boolean,
+)
+
+private data class CommitIdentity(
+    val name: String,
+    val email: String,
 )

@@ -8,6 +8,7 @@ import io.github.haonan.kmp.apple.packager.tasks.PublishGithubReleaseTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishPackageManifestRepositoryTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateApplePackagerConfigurationTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateSwiftPmTask
+import io.github.haonan.kmp.apple.packager.tasks.VerifyPublishedArtifactTask
 import io.github.haonan.kmp.apple.packager.tasks.WritePackageMetadataTask
 import io.github.haonan.kmp.apple.packager.tasks.ZipArtifactTask
 import org.gradle.api.Plugin
@@ -59,6 +60,9 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             "kmpApplePackager/packageRepository/publish.properties"
         )
         val validationReportOutputFile = layout.buildDirectory.file("kmpApplePackager/validation/report.properties")
+        val artifactVerificationReportOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/artifactVerification/report.properties"
+        )
         val configurationValidationReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/configuration/report.properties"
         )
@@ -81,6 +85,8 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.manifestRepositoryPath.set(extension.manifestRepositoryPath)
             task.manifestRepositoryBranch.set(extension.manifestRepositoryBranch)
             task.manifestRepositorySubdirectory.set(extension.manifestRepositorySubdirectory)
+            task.manifestCommitUserName.set(extension.manifestCommitUserName)
+            task.manifestCommitUserEmail.set(extension.manifestCommitUserEmail)
             task.publishRelease.set(extension.publishRelease)
             task.publishManifestRepository.set(extension.publishManifestRepository)
             task.pushManifestRepository.set(extension.pushManifestRepository)
@@ -90,6 +96,9 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.githubRequestTimeoutSeconds.set(extension.githubRequestTimeoutSeconds)
             task.githubMaxRetries.set(extension.githubMaxRetries)
+            task.verifyPublishedArtifact.set(extension.verifyPublishedArtifact)
+            task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
+            task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
             task.failOnDirtyManifestRepository.set(extension.failOnDirtyManifestRepository)
             task.minimumIosVersion.set(extension.minimumIosVersion)
             task.minimumMacosVersion.set(extension.minimumMacosVersion)
@@ -168,6 +177,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.publishRelease.set(extension.publishRelease)
             task.githubRequestTimeoutSeconds.set(extension.githubRequestTimeoutSeconds)
             task.githubMaxRetries.set(extension.githubMaxRetries)
+            task.artifactUrlOverride.set(extension.artifactUrlOverride)
             task.archiveFile.set(archiveOutputFile)
             task.publishMetadataFile.set(publishMetadataOutputFile)
         }
@@ -211,11 +221,41 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.validationReportFile.set(validationReportOutputFile)
         }
 
+        val artifactVerificationTask = tasks.register(
+            "verifyPublishedArtifact",
+            VerifyPublishedArtifactTask::class.java,
+        )
+        artifactVerificationTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Downloads the published artifact and verifies that the remote checksum matches the local archive."
+            task.dependsOn(configurationValidationTask, checksumTask, publishTask)
+            task.verifyPublishedArtifact.set(extension.verifyPublishedArtifact)
+            task.swiftExecutable.set(extension.swiftExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
+            task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
+            task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
+            task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubRepo.set(extension.githubRepo)
+            task.githubTag.set(extension.githubTag)
+            task.githubToken.set(extension.githubToken)
+            task.archiveFileName.set(archiveFileName)
+            task.checksumFile.set(checksumOutputFile)
+            task.publishMetadataFile.set(publishMetadataOutputFile)
+            task.verificationReportFile.set(artifactVerificationReportOutputFile)
+        }
+
         val metadataTask = tasks.register("writeApplePackageMetadata", WritePackageMetadataTask::class.java)
         metadataTask.configure { task ->
             task.group = taskGroup
             task.description = "Writes a machine-readable JSON summary of the generated package outputs."
-            task.dependsOn(configurationValidationTask, manifestTask, publishTask, publishManifestRepositoryTask, validateTask)
+            task.dependsOn(
+                configurationValidationTask,
+                manifestTask,
+                publishTask,
+                publishManifestRepositoryTask,
+                validateTask,
+                artifactVerificationTask,
+            )
             task.packageName.set(extension.packageName)
             task.packageVersion.set(extension.version)
             task.minimumIosVersion.set(extension.minimumIosVersion)
@@ -233,6 +273,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.publishMetadataFile.set(publishMetadataOutputFile)
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
+            task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
             task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
         }
@@ -265,6 +306,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.publishMetadataFile.set(publishMetadataOutputFile)
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
+            task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
         }
 

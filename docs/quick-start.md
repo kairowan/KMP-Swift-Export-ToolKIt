@@ -39,6 +39,8 @@ kmpApplePackager {
     githubRepo.set("yourname/shared-package")
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
+    manifestCommitUserName.set("CI Release Bot")
+    manifestCommitUserEmail.set("ci@example.com")
     minimumIosVersion.set("16.0")
     minimumMacosVersion.set("13.0")
     swiftExecutable.set("swift")
@@ -46,6 +48,9 @@ kmpApplePackager {
     commandTimeoutSeconds.set(600)
     githubRequestTimeoutSeconds.set(120)
     githubMaxRetries.set(2)
+    verifyPublishedArtifact.set(true)
+    artifactDownloadTimeoutSeconds.set(300)
+    artifactDownloadMaxRetries.set(2)
 }
 ```
 
@@ -54,6 +59,7 @@ By default the plugin expects the KMP module to expose the Gradle task `assemble
 If `manifestRepository` is configured, the plugin can also commit the generated `Package.swift`
 into a dedicated repository or branch. Keep `publishManifestRepository=false` for local dry-runs,
 and set `pushManifestRepository=true` only when you are ready to update the remote branch.
+`manifestRepositoryPath` can point at either a normal git checkout or a git worktree.
 
 Additional SwiftPM deployment targets are optional. You can also set
 `minimumTvosVersion`, `minimumWatchosVersion`, `minimumVisionosVersion`, and
@@ -65,6 +71,7 @@ For production CI, the most relevant operational controls are:
 - `githubRequestTimeoutSeconds`: per-request timeout for GitHub Releases API calls
 - `githubMaxRetries`: retry budget for transient GitHub failures such as 429 or 5xx
 - `failOnDirtyManifestRepository`: whether a local manifest checkout must be clean before the plugin commits `Package.swift`
+- `manifestCommitUserName` / `manifestCommitUserEmail`: explicit commit identity for CI, otherwise the task falls back to `git config user.name/user.email`
 
 ## 4. Publish
 
@@ -81,6 +88,7 @@ The plugin writes artifacts into `build/kmpApplePackager/`:
 - `distributions/`
 - `checksum/`
 - `package/Package.swift`
+- `artifactVerification/report.properties`
 - `metadata/package-metadata.json`
 - `release/publish.properties`
 - `packageRepository/publish.properties`

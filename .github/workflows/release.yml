@@ -100,6 +100,7 @@ jobs:
           name: sample-package-metadata
           path: |
             samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+            samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
             samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
             samples/kmp-library/build/kmpApplePackager/release/publish.properties
             samples/kmp-library/build/kmpApplePackager/packageRepository/publish.properties

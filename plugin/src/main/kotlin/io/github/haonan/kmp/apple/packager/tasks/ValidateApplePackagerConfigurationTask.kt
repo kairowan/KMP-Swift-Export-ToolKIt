@@ -55,6 +55,14 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
     abstract val manifestRepositorySubdirectory: Property<String>
 
     @get:Input
+    @get:Optional
+    abstract val manifestCommitUserName: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val manifestCommitUserEmail: Property<String>
+
+    @get:Input
     abstract val publishRelease: Property<Boolean>
 
     @get:Input
@@ -80,6 +88,15 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
 
     @get:Input
     abstract val githubMaxRetries: Property<Int>
+
+    @get:Input
+    abstract val verifyPublishedArtifact: Property<Boolean>
+
+    @get:Input
+    abstract val artifactDownloadTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val artifactDownloadMaxRetries: Property<Int>
 
     @get:Input
     abstract val failOnDirtyManifestRepository: Property<Boolean>
@@ -127,6 +144,8 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
                 manifestRepositoryPath = manifestRepositoryPath.orNull,
                 manifestRepositoryBranch = manifestRepositoryBranch.get(),
                 manifestRepositorySubdirectory = manifestRepositorySubdirectory.get(),
+                manifestCommitUserName = manifestCommitUserName.orNull,
+                manifestCommitUserEmail = manifestCommitUserEmail.orNull,
                 publishRelease = publishRelease.get(),
                 publishManifestRepository = publishManifestRepository.get(),
                 pushManifestRepository = pushManifestRepository.get(),
@@ -136,6 +155,9 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
                 commandTimeoutSeconds = commandTimeoutSeconds.get(),
                 githubRequestTimeoutSeconds = githubRequestTimeoutSeconds.get(),
                 githubMaxRetries = githubMaxRetries.get(),
+                verifyPublishedArtifact = verifyPublishedArtifact.get(),
+                artifactDownloadTimeoutSeconds = artifactDownloadTimeoutSeconds.get(),
+                artifactDownloadMaxRetries = artifactDownloadMaxRetries.get(),
                 failOnDirtyManifestRepository = failOnDirtyManifestRepository.get(),
                 minimumIosVersion = minimumIosVersion.orNull,
                 minimumMacosVersion = minimumMacosVersion.orNull,

@@ -29,7 +29,9 @@ This plugin turns that workflow into a repeatable release pipeline.
 - Fail fast on invalid publish configuration before the heavy build work starts
 - Publish archives to GitHub Releases
 - Sync `Package.swift` into a dedicated repository or release branch
+- Support both regular git checkouts and git worktrees when syncing manifest repositories
 - Validate the generated manifest with `swift package`
+- Download and verify published artifacts against the locally generated checksum
 - Emit machine-readable release metadata for CI and downstream automation
 - Use configurable GitHub request retries/timeouts and external command timeouts
 - Protect local manifest repositories from accidental publishes when the checkout is already dirty
@@ -61,6 +63,8 @@ kmpApplePackager {
     githubRepo.set("yourname/shared-package")
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
+    manifestCommitUserName.set("CI Release Bot")
+    manifestCommitUserEmail.set("ci@example.com")
     iosTargets.set(listOf("iosArm64", "iosSimulatorArm64"))
     minimumMacosVersion.set("13.0")
     swiftExecutable.set("swift")
@@ -68,6 +72,9 @@ kmpApplePackager {
     commandTimeoutSeconds.set(600)
     githubRequestTimeoutSeconds.set(120)
     githubMaxRetries.set(2)
+    verifyPublishedArtifact.set(true)
+    artifactDownloadTimeoutSeconds.set(300)
+    artifactDownloadMaxRetries.set(2)
 }
 ```
 
@@ -87,6 +94,7 @@ Then run:
 - `publishGithubRelease`
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
+- `verifyPublishedArtifact`
 - `writeApplePackageMetadata`
 - `publishApplePackage`
 
@@ -116,7 +124,13 @@ For production pipelines, the operational defaults are now explicit:
 
 - `commandTimeoutSeconds=600` for local tools such as `swift`, `git`, and `ditto`
 - `githubRequestTimeoutSeconds=120` with `githubMaxRetries=2` for GitHub Releases API calls
+- `verifyPublishedArtifact=true` with `artifactDownloadTimeoutSeconds=300` and `artifactDownloadMaxRetries=2` for post-publish download verification
 - `failOnDirtyManifestRepository=true` so local manifest checkouts are rejected if they already contain unrelated changes
+
+When manifest publishing is enabled, the plugin can work with either a normal git checkout or a
+git worktree via `manifestRepositoryPath`. Managed remote checkouts are refreshed before branch
+sync, and manifest commit identity falls back to `git config user.name/user.email` if you do not
+set `manifestCommitUserName` and `manifestCommitUserEmail` explicitly.
 
 ## Samples
 

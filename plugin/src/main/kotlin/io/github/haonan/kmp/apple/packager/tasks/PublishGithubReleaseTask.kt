@@ -49,6 +49,10 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
     @get:Input
     abstract val githubMaxRetries: Property<Int>
 
+    @get:Input
+    @get:Optional
+    abstract val artifactUrlOverride: Property<String>
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val archiveFile: RegularFileProperty
@@ -64,7 +68,7 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
         if (!publishRelease.get()) {
             val downloadUrl = runCatching {
                 ArtifactLocationResolver.resolve(
-                    artifactUrlOverride = null,
+                    artifactUrlOverride = artifactUrlOverride.orNull,
                     githubRepo = githubRepo.orNull,
                     githubTag = githubTag.orNull,
                     assetName = archiveFile.get().asFile.name,
@@ -111,6 +115,8 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
         output.writeText(
             buildString {
                 appendLine("published=true")
+                appendLine("repo=$repo")
+                appendLine("assetId=${asset.id}")
                 appendLine("downloadUrl=${asset.browserDownloadUrl}")
                 appendLine("releaseUrl=${release.htmlUrl.orEmpty()}")
             }

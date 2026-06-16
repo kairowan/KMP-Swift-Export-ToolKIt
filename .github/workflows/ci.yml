@@ -31,8 +31,22 @@ jobs:
       - name: Validate generated metadata
         run: |
           test -f samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+          test -f samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
           test -f samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
           ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+
+      - name: Local artifact download verification
+        run: |
+          mkdir -p samples/kmp-library/build/kmpApplePackager/distributions
+          python3 -m http.server 8765 --directory samples/kmp-library/build/kmpApplePackager/distributions >/tmp/kmp-apple-packager-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          ./gradlew -p samples/kmp-library publishApplePackage --rerun-tasks \
+            -Pkmp.apple.packager.artifactUrlOverride=http://127.0.0.1:8765/Shared-0.1.0.xcframework.zip
+
+          ruby -e 'props = File.read(ARGV[0]); abort("artifact verification did not pass") unless props.include?("status=verified")' \
+            samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
 
       - name: Dry-run manifest repository sync
         run: |
@@ -49,6 +63,29 @@ jobs:
 
           test -f "$temp_repo/Package.swift"
           swift package dump-package --package-path "$temp_repo"
+
+      - name: Manifest repository git worktree support
+        run: |
+          base_repo="$(mktemp -d)"
+          worktree_parent="$(mktemp -d)"
+          worktree_path="$worktree_parent/manifest-worktree"
+          git init -b main "$base_repo"
+          printf '# Manifest Repo\n' > "$base_repo/README.md"
+          git -C "$base_repo" add README.md
+          git -C "$base_repo" -c user.name='CI Bot' -c user.email='ci@example.com' commit -m 'Initial commit'
+          git -C "$base_repo" worktree add -b release "$worktree_path"
+
+          ./gradlew -p samples/kmp-library publishApplePackage \
+            -Pkmp.apple.packager.publishManifestRepository=true \
+            -Pkmp.apple.packager.manifestRepositoryPath="$worktree_path" \
+            -Pkmp.apple.packager.manifestRepositoryBranch=release \
+            -Pkmp.apple.packager.manifestCommitUserName='CI Bot' \
+            -Pkmp.apple.packager.manifestCommitUserEmail='ci@example.com'
+
+          test -f "$worktree_path/Package.swift"
+          swift package dump-package --package-path "$worktree_path"
+          ruby -e 'props = File.read(ARGV[0]); abort("missing commit author metadata") unless props.include?("commitAuthorName=CI Bot")' \
+            samples/kmp-library/build/kmpApplePackager/packageRepository/publish.properties
 
       - name: Dirty manifest repository safety check
         run: |

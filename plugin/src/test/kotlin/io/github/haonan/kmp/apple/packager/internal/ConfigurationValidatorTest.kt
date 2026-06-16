@@ -117,6 +117,64 @@ class ConfigurationValidatorTest {
         )
     }
 
+    @Test
+    fun `warns when manifest commit identity falls back to git config`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                publishManifestRepository = true,
+                manifestRepositoryPath = "/tmp/shared-spm",
+                manifestCommitUserName = "",
+                manifestCommitUserEmail = "",
+            )
+        )
+
+        assertTrue(result.errors.isEmpty())
+        assertTrue(
+            result.warnings.contains(
+                "manifestCommitUserName/manifestCommitUserEmail are not fully configured; the task will fall back to git user.name/user.email from the selected checkout."
+            )
+        )
+    }
+
+    @Test
+    fun `rejects invalid artifact verification timeout and retry values`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                verifyPublishedArtifact = true,
+                artifactDownloadTimeoutSeconds = 0,
+                artifactDownloadMaxRetries = -1,
+            )
+        )
+
+        assertTrue(
+            result.errors.contains(
+                "artifactDownloadTimeoutSeconds must be greater than 0 when verifyPublishedArtifact=true."
+            )
+        )
+        assertTrue(
+            result.errors.contains(
+                "artifactDownloadMaxRetries must be 0 or greater when verifyPublishedArtifact=true."
+            )
+        )
+    }
+
+    @Test
+    fun `warns when post publish artifact verification is disabled`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                publishRelease = true,
+                verifyPublishedArtifact = false,
+            )
+        )
+
+        assertTrue(result.errors.isEmpty())
+        assertTrue(
+            result.warnings.contains(
+                "verifyPublishedArtifact=false disables the post-publish download and checksum verification step."
+            )
+        )
+    }
+
     private fun validSpec(
         packageName: String = "Shared",
         packageVersion: String = "0.1.0",
@@ -128,6 +186,8 @@ class ConfigurationValidatorTest {
         manifestRepositoryPath: String? = null,
         manifestRepositoryBranch: String = "main",
         manifestRepositorySubdirectory: String = "swiftpm",
+        manifestCommitUserName: String? = "CI Bot",
+        manifestCommitUserEmail: String? = "ci@example.com",
         publishRelease: Boolean = false,
         publishManifestRepository: Boolean = false,
         pushManifestRepository: Boolean = false,
@@ -137,6 +197,9 @@ class ConfigurationValidatorTest {
         commandTimeoutSeconds: Int = 600,
         githubRequestTimeoutSeconds: Int = 120,
         githubMaxRetries: Int = 2,
+        verifyPublishedArtifact: Boolean = true,
+        artifactDownloadTimeoutSeconds: Int = 300,
+        artifactDownloadMaxRetries: Int = 2,
         failOnDirtyManifestRepository: Boolean = true,
         minimumIosVersion: String = "16.0",
         minimumMacosVersion: String? = "",
@@ -156,6 +219,8 @@ class ConfigurationValidatorTest {
             manifestRepositoryPath = manifestRepositoryPath,
             manifestRepositoryBranch = manifestRepositoryBranch,
             manifestRepositorySubdirectory = manifestRepositorySubdirectory,
+            manifestCommitUserName = manifestCommitUserName,
+            manifestCommitUserEmail = manifestCommitUserEmail,
             publishRelease = publishRelease,
             publishManifestRepository = publishManifestRepository,
             pushManifestRepository = pushManifestRepository,
@@ -165,6 +230,9 @@ class ConfigurationValidatorTest {
             commandTimeoutSeconds = commandTimeoutSeconds,
             githubRequestTimeoutSeconds = githubRequestTimeoutSeconds,
             githubMaxRetries = githubMaxRetries,
+            verifyPublishedArtifact = verifyPublishedArtifact,
+            artifactDownloadTimeoutSeconds = artifactDownloadTimeoutSeconds,
+            artifactDownloadMaxRetries = artifactDownloadMaxRetries,
             failOnDirtyManifestRepository = failOnDirtyManifestRepository,
             minimumIosVersion = minimumIosVersion,
             minimumMacosVersion = minimumMacosVersion,

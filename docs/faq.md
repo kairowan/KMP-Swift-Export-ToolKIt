@@ -47,6 +47,29 @@ kmpApplePackager {
 
 You can turn it off for intentionally managed workflows, but keeping it enabled is the safer production default.
 
+## Can the plugin verify the final downloadable zip after publishing?
+
+Yes.
+
+That behavior is enabled by default through:
+
+```kotlin
+kmpApplePackager {
+    verifyPublishedArtifact.set(true)
+}
+```
+
+For dry-runs it skips automatically unless you provide a real `artifactUrlOverride`.
+
+## Can `manifestRepositoryPath` point to a git worktree?
+
+Yes.
+
+The plugin resolves the repository through `git rev-parse --show-toplevel`, so both normal
+checkouts and git worktrees are supported. If you do not set
+`manifestCommitUserName` / `manifestCommitUserEmail`, it will fall back to the checkout's
+`git config user.name` and `git config user.email`.
+
 ## Which Apple targets are expected?
 
 The sample defaults to `iosArm64` and `iosSimulatorArm64`, but the release pipeline is driven by the generated XCFramework rather than by target introspection.
