@@ -2,6 +2,7 @@ package io.github.haonan.kmp.apple.packager.internal
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.TimeUnit
 import org.gradle.api.GradleException
 import org.gradle.process.ExecOperations
 
@@ -12,6 +13,7 @@ import org.gradle.process.ExecOperations
  */
 internal class ProcessRunner(
     private val execOperations: ExecOperations,
+    private val commandTimeoutSeconds: Int,
 ) {
     fun run(
         commandLine: List<String>,
@@ -21,23 +23,53 @@ internal class ProcessRunner(
         val stdout = ByteArrayOutputStream()
         val stderr = ByteArrayOutputStream()
 
-        val result = execOperations.exec { spec ->
-            spec.commandLine(commandLine)
-            workingDir?.let { dir ->
-                spec.workingDir(dir)
-            }
-            environment.forEach { (key, value) ->
-                spec.environment(key, value)
-            }
-            spec.isIgnoreExitValue = true
-            spec.standardOutput = stdout
-            spec.errorOutput = stderr
+        val process = try {
+            ProcessBuilder(commandLine)
+                .apply {
+                    workingDir?.let { directory(it) }
+                    environment().putAll(environment)
+                }
+                .start()
+        } catch (exception: Exception) {
+            throw GradleException(
+                "Failed to start command: ${commandLine.joinToString(" ")}",
+                exception,
+            )
         }
+
+        val stdoutThread = startPump(process.inputStream, stdout)
+        val stderrThread = startPump(process.errorStream, stderr)
+
+        val finished = process.waitFor(commandTimeoutSeconds.toLong(), TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+            stdoutThread.join(1_000)
+            stderrThread.join(1_000)
+
+            val standardOut = stdout.toString().trim()
+            val standardErr = stderr.toString().trim()
+            throw GradleException(
+                buildString {
+                    appendLine("Command timed out after ${commandTimeoutSeconds}s: ${commandLine.joinToString(" ")}")
+                    if (standardOut.isNotEmpty()) {
+                        appendLine("stdout:")
+                        appendLine(standardOut)
+                    }
+                    if (standardErr.isNotEmpty()) {
+                        appendLine("stderr:")
+                        appendLine(standardErr)
+                    }
+                }
+            )
+        }
+
+        stdoutThread.join(1_000)
+        stderrThread.join(1_000)
 
         val standardOut = stdout.toString().trim()
         val standardErr = stderr.toString().trim()
 
-        if (result.exitValue != 0) {
+        if (process.exitValue() != 0) {
             throw GradleException(
                 buildString {
                     appendLine("Command failed: ${commandLine.joinToString(" ")}")
@@ -57,6 +89,20 @@ internal class ProcessRunner(
             stdout = standardOut,
             stderr = standardErr,
         )
+    }
+
+    private fun startPump(
+        input: java.io.InputStream,
+        output: ByteArrayOutputStream,
+    ): Thread {
+        return Thread {
+            input.use { source ->
+                source.copyTo(output)
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
     }
 }
 

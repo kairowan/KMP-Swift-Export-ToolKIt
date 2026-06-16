@@ -33,6 +33,20 @@ kmpApplePackager {
 }
 ```
 
+## What happens if my local manifest repository checkout already has changes?
+
+Publishing fails by default.
+
+That safety check is controlled by:
+
+```kotlin
+kmpApplePackager {
+    failOnDirtyManifestRepository.set(true)
+}
+```
+
+You can turn it off for intentionally managed workflows, but keeping it enabled is the safer production default.
+
 ## Which Apple targets are expected?
 
 The sample defaults to `iosArm64` and `iosSimulatorArm64`, but the release pipeline is driven by the generated XCFramework rather than by target introspection.

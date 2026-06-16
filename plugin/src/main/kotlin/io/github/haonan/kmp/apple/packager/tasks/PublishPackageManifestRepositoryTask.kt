@@ -58,6 +58,15 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
     abstract val manifestCommitUserEmail: Property<String>
 
     @get:Input
+    abstract val gitExecutable: Property<String>
+
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val failOnDirtyManifestRepository: Property<Boolean>
+
+    @get:Input
     abstract val publishManifestRepository: Property<Boolean>
 
     @get:Input
@@ -85,7 +94,11 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             return
         }
 
-        val runner = ProcessRunner(execOperations)
+        val runner = ProcessRunner(
+            execOperations = execOperations,
+            commandTimeoutSeconds = commandTimeoutSeconds.get(),
+        )
+        val gitExecutableValue = gitExecutable.get()
         val manifestRepositoryPathValue = manifestRepositoryPath.orNull?.trim().orEmpty()
         val repositoryBranch = manifestRepositoryBranch.get().trim()
         val repositorySubdirectory = manifestRepositorySubdirectory.get().trim().trim('/')
@@ -95,7 +108,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             PreparedRepository(
                 repositoryRoot = repositoryRoot,
                 displayLocation = repositoryRoot.absolutePath,
-                hasOriginRemote = hasOriginRemote(repositoryRoot, runner),
+                hasOriginRemote = hasOriginRemote(repositoryRoot, runner, gitExecutableValue),
                 usesLocalCheckout = true,
             )
         } else {
@@ -108,7 +121,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             }
             val reference = RepositoryReferenceResolver.resolve(repositoryValue)
             val checkoutDirectory = File(temporaryDir, "manifestRepositoryCheckout")
-            prepareRemoteCheckout(checkoutDirectory, reference.cloneSource, runner)
+            prepareRemoteCheckout(checkoutDirectory, reference.cloneSource, runner, gitExecutableValue)
             PreparedRepository(
                 repositoryRoot = checkoutDirectory,
                 displayLocation = reference.displayLocation,
@@ -117,7 +130,11 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             )
         }
 
-        checkoutBranch(preparedRepository.repositoryRoot, repositoryBranch, runner)
+        if (preparedRepository.usesLocalCheckout && failOnDirtyManifestRepository.get()) {
+            ensureCleanWorkingTree(preparedRepository.repositoryRoot, runner, gitExecutableValue)
+        }
+
+        checkoutBranch(preparedRepository.repositoryRoot, repositoryBranch, runner, gitExecutableValue)
 
         val targetDirectory = if (repositorySubdirectory.isEmpty()) {
             preparedRepository.repositoryRoot
@@ -137,7 +154,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
 
         runner.run(
             listOf(
-                "git",
+                gitExecutableValue,
                 "-C",
                 preparedRepository.repositoryRoot.absolutePath,
                 "add",
@@ -146,7 +163,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             )
         )
 
-        val statusOutput = runGitStatus(preparedRepository.repositoryRoot, targetRelativePath, runner)
+        val statusOutput = runGitStatus(preparedRepository.repositoryRoot, targetRelativePath, runner, gitExecutableValue)
         if (statusOutput.isEmpty()) {
             metadataFile.writeText(
                 buildString {
@@ -163,7 +180,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         }
 
         val commitCommand = mutableListOf(
-            "git",
+            gitExecutableValue,
             "-C",
             preparedRepository.repositoryRoot.absolutePath,
         )
@@ -184,7 +201,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
 
         val commitSha = runner.run(
             listOf(
-                "git",
+                gitExecutableValue,
                 "-C",
                 preparedRepository.repositoryRoot.absolutePath,
                 "rev-parse",
@@ -201,7 +218,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             }
             runner.run(
                 listOf(
-                    "git",
+                    gitExecutableValue,
                     "-C",
                     preparedRepository.repositoryRoot.absolutePath,
                     "push",
@@ -242,13 +259,14 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         checkoutDirectory: File,
         cloneSource: String,
         runner: ProcessRunner,
+        gitExecutable: String,
     ) {
         val gitDirectory = File(checkoutDirectory, ".git")
         if (gitDirectory.exists()) {
             val currentOrigin = runCatching {
                 runner.run(
                     listOf(
-                        "git",
+                        gitExecutable,
                         "-C",
                         checkoutDirectory.absolutePath,
                         "remote",
@@ -266,7 +284,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         }
 
         if (!checkoutDirectory.exists()) {
-            runner.run(listOf("git", "clone", cloneSource, checkoutDirectory.absolutePath))
+            runner.run(listOf(gitExecutable, "clone", cloneSource, checkoutDirectory.absolutePath))
         }
     }
 
@@ -274,20 +292,21 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         repositoryRoot: File,
         branch: String,
         runner: ProcessRunner,
+        gitExecutable: String,
     ) {
         val hasHead = runCatching {
-            runner.run(listOf("git", "-C", repositoryRoot.absolutePath, "rev-parse", "--verify", "HEAD"))
+            runner.run(listOf(gitExecutable, "-C", repositoryRoot.absolutePath, "rev-parse", "--verify", "HEAD"))
         }.isSuccess
 
         if (!hasHead) {
-            runner.run(listOf("git", "-C", repositoryRoot.absolutePath, "checkout", "--orphan", branch))
+            runner.run(listOf(gitExecutable, "-C", repositoryRoot.absolutePath, "checkout", "--orphan", branch))
             return
         }
 
         val hasLocalBranch = runCatching {
             runner.run(
                 listOf(
-                    "git",
+                    gitExecutable,
                     "-C",
                     repositoryRoot.absolutePath,
                     "rev-parse",
@@ -299,7 +318,7 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         val hasRemoteBranch = runCatching {
             runner.run(
                 listOf(
-                    "git",
+                    gitExecutable,
                     "-C",
                     repositoryRoot.absolutePath,
                     "rev-parse",
@@ -311,12 +330,12 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
 
         when {
             hasLocalBranch -> runner.run(
-                listOf("git", "-C", repositoryRoot.absolutePath, "checkout", branch)
+                listOf(gitExecutable, "-C", repositoryRoot.absolutePath, "checkout", branch)
             )
 
             hasRemoteBranch -> runner.run(
                 listOf(
-                    "git",
+                    gitExecutable,
                     "-C",
                     repositoryRoot.absolutePath,
                     "checkout",
@@ -327,14 +346,14 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
             )
 
             else -> runner.run(
-                listOf("git", "-C", repositoryRoot.absolutePath, "checkout", "-B", branch)
+                listOf(gitExecutable, "-C", repositoryRoot.absolutePath, "checkout", "-B", branch)
             )
         }
 
         if (hasRemoteBranch) {
             runner.run(
                 listOf(
-                    "git",
+                    gitExecutable,
                     "-C",
                     repositoryRoot.absolutePath,
                     "pull",
@@ -350,10 +369,11 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
         repositoryRoot: File,
         relativePath: String,
         runner: ProcessRunner,
+        gitExecutable: String,
     ): String {
         return runner.run(
             listOf(
-                "git",
+                gitExecutable,
                 "-C",
                 repositoryRoot.absolutePath,
                 "status",
@@ -367,11 +387,12 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
     private fun hasOriginRemote(
         repositoryRoot: File,
         runner: ProcessRunner,
+        gitExecutable: String,
     ): Boolean {
         return runCatching {
             runner.run(
                 listOf(
-                    "git",
+                    gitExecutable,
                     "-C",
                     repositoryRoot.absolutePath,
                     "remote",
@@ -380,6 +401,31 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
                 )
             )
         }.isSuccess
+    }
+
+    private fun ensureCleanWorkingTree(
+        repositoryRoot: File,
+        runner: ProcessRunner,
+        gitExecutable: String,
+    ) {
+        val status = runner.run(
+            listOf(
+                gitExecutable,
+                "-C",
+                repositoryRoot.absolutePath,
+                "status",
+                "--porcelain",
+            )
+        ).stdout
+
+        if (status.isNotEmpty()) {
+            throw GradleException(
+                "Manifest repository checkout is dirty at ${repositoryRoot.absolutePath}. " +
+                    "Commit or stash local changes before publishing, or set " +
+                    "kmpApplePackager.failOnDirtyManifestRepository=false if you intentionally want to allow this.\n" +
+                    status
+            )
+        }
     }
 }
 

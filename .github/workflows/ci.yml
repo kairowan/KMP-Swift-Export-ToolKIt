@@ -50,6 +50,23 @@ jobs:
           test -f "$temp_repo/Package.swift"
           swift package dump-package --package-path "$temp_repo"
 
+      - name: Dirty manifest repository safety check
+        run: |
+          temp_repo="$(mktemp -d)"
+          git init -b main "$temp_repo"
+          printf '# Manifest Repo\n' > "$temp_repo/README.md"
+          git -C "$temp_repo" add README.md
+          git -C "$temp_repo" -c user.name='CI Bot' -c user.email='ci@example.com' commit -m 'Initial commit'
+          printf 'dirty\n' >> "$temp_repo/README.md"
+
+          if ./gradlew -p samples/kmp-library publishApplePackage \
+            -Pkmp.apple.packager.publishManifestRepository=true \
+            -Pkmp.apple.packager.manifestRepositoryPath="$temp_repo" \
+            -Pkmp.apple.packager.manifestRepositoryBranch=main; then
+            echo "Expected dirty manifest repository publish to fail."
+            exit 1
+          fi
+
       - name: SwiftPM manifest syntax check
         run: swift package dump-package
         working-directory: samples/kmp-library/build/kmpApplePackager/package

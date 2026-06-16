@@ -28,6 +28,9 @@ abstract class ComputeChecksumTask : DefaultTask() {
     @get:Input
     abstract val swiftExecutable: Property<String>
 
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
     @get:OutputFile
     abstract val checksumFile: RegularFileProperty
 
@@ -36,12 +39,16 @@ abstract class ComputeChecksumTask : DefaultTask() {
 
     init {
         swiftExecutable.convention("swift")
+        commandTimeoutSeconds.convention(600)
     }
 
     @TaskAction
     fun computeChecksum() {
         val archive = archiveFile.get().asFile
-        val checksum = ProcessRunner(execOperations)
+        val checksum = ProcessRunner(
+            execOperations = execOperations,
+            commandTimeoutSeconds = commandTimeoutSeconds.get(),
+        )
             .run(listOf(swiftExecutable.get(), "package", "compute-checksum", archive.absolutePath))
             .stdout
 

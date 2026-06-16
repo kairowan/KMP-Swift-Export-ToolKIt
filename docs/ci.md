@@ -46,6 +46,18 @@ Every run now emits:
 The JSON metadata file is intended for CI consumption. It includes the resolved artifact URL,
 checksum, platform declarations, publish status, manifest repository result, and validation status.
 
+For more predictable production builds, consider setting:
+
+```bash
+-Pkmp.apple.packager.commandTimeoutSeconds=600 \
+-Pkmp.apple.packager.githubRequestTimeoutSeconds=120 \
+-Pkmp.apple.packager.githubMaxRetries=2
+```
+
+When you publish into a local manifest checkout, the default
+`-Pkmp.apple.packager.failOnDirtyManifestRepository=true` will block the release if that checkout
+already contains unrelated uncommitted changes.
+
 ## GitHub Actions workflow options
 
 `release.yml` now supports two manifest publishing modes:

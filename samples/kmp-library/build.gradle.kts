@@ -40,6 +40,30 @@ kmpApplePackager {
         providers.gradleProperty("kmp.apple.packager.swiftExecutable")
             .orElse("swift")
     )
+    gitExecutable.set(
+        providers.gradleProperty("kmp.apple.packager.gitExecutable")
+            .orElse("git")
+    )
+    commandTimeoutSeconds.set(
+        providers.gradleProperty("kmp.apple.packager.commandTimeoutSeconds")
+            .map(String::toInt)
+            .orElse(600)
+    )
+    githubRequestTimeoutSeconds.set(
+        providers.gradleProperty("kmp.apple.packager.githubRequestTimeoutSeconds")
+            .map(String::toInt)
+            .orElse(120)
+    )
+    githubMaxRetries.set(
+        providers.gradleProperty("kmp.apple.packager.githubMaxRetries")
+            .map(String::toInt)
+            .orElse(2)
+    )
+    failOnDirtyManifestRepository.set(
+        providers.gradleProperty("kmp.apple.packager.failOnDirtyManifestRepository")
+            .map(String::toBoolean)
+            .orElse(true)
+    )
     manifestRepository.set(
         providers.gradleProperty("kmp.apple.packager.manifestRepository")
             .orElse("")

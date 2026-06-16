@@ -23,6 +23,11 @@ internal data class ApplePackagerConfigurationSpec(
     val pushManifestRepository: Boolean,
     val validatePackage: Boolean,
     val swiftExecutable: String,
+    val gitExecutable: String,
+    val commandTimeoutSeconds: Int,
+    val githubRequestTimeoutSeconds: Int,
+    val githubMaxRetries: Int,
+    val failOnDirtyManifestRepository: Boolean,
     val minimumIosVersion: String?,
     val minimumMacosVersion: String?,
     val minimumTvosVersion: String?,
@@ -77,6 +82,7 @@ internal object ConfigurationValidator {
         val manifestRepositoryBranch = spec.manifestRepositoryBranch.trim()
         val manifestRepositorySubdirectory = spec.manifestRepositorySubdirectory.trim()
         val swiftExecutable = spec.swiftExecutable.trim()
+        val gitExecutable = spec.gitExecutable.trim()
 
         if (artifactUrlOverride.isEmpty() && (githubRepo.isEmpty() || githubTag.isEmpty())) {
             errors += "Configure artifactUrlOverride or provide both githubRepo and githubTag."
@@ -104,6 +110,12 @@ internal object ConfigurationValidator {
             if (!spec.githubTokenConfigured) {
                 errors += "GITHUB_TOKEN must be available when publishRelease=true."
             }
+            if (spec.githubRequestTimeoutSeconds <= 0) {
+                errors += "githubRequestTimeoutSeconds must be greater than 0."
+            }
+            if (spec.githubMaxRetries < 0) {
+                errors += "githubMaxRetries must be 0 or greater."
+            }
             if (artifactUrlOverride.isNotEmpty()) {
                 warnings += "artifactUrlOverride is set, so the generated Package.swift will not point at the uploaded GitHub release asset."
             }
@@ -120,6 +132,12 @@ internal object ConfigurationValidator {
             if (manifestRepositoryBranch.isEmpty()) {
                 errors += "manifestRepositoryBranch must not be blank when publishManifestRepository=true."
             }
+            if (gitExecutable.isEmpty()) {
+                errors += "gitExecutable must not be blank when publishManifestRepository=true."
+            }
+            if (spec.pushManifestRepository && !spec.failOnDirtyManifestRepository) {
+                warnings += "failOnDirtyManifestRepository=false allows pushing Package.swift from a checkout that may already contain unrelated local changes."
+            }
         }
 
         if (containsPathTraversal(manifestRepositorySubdirectory)) {
@@ -128,6 +146,10 @@ internal object ConfigurationValidator {
 
         if (spec.validatePackage && swiftExecutable.isEmpty()) {
             errors += "swiftExecutable must not be blank when validatePackage=true."
+        }
+
+        if (spec.commandTimeoutSeconds <= 0) {
+            errors += "commandTimeoutSeconds must be greater than 0."
         }
 
         return ConfigurationValidationResult(

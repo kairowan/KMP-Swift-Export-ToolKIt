@@ -82,6 +82,41 @@ class ConfigurationValidatorTest {
         )
     }
 
+    @Test
+    fun `rejects non-positive timeouts and negative retry counts`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                commandTimeoutSeconds = 0,
+                publishRelease = true,
+                githubRequestTimeoutSeconds = 0,
+                githubMaxRetries = -1,
+            )
+        )
+
+        assertTrue(result.errors.contains("commandTimeoutSeconds must be greater than 0."))
+        assertTrue(result.errors.contains("githubRequestTimeoutSeconds must be greater than 0."))
+        assertTrue(result.errors.contains("githubMaxRetries must be 0 or greater."))
+    }
+
+    @Test
+    fun `warns when dirty manifest repositories are allowed during push`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                publishManifestRepository = true,
+                pushManifestRepository = true,
+                manifestRepositoryPath = "/tmp/shared-spm",
+                failOnDirtyManifestRepository = false,
+            )
+        )
+
+        assertTrue(result.errors.isEmpty())
+        assertTrue(
+            result.warnings.contains(
+                "failOnDirtyManifestRepository=false allows pushing Package.swift from a checkout that may already contain unrelated local changes."
+            )
+        )
+    }
+
     private fun validSpec(
         packageName: String = "Shared",
         packageVersion: String = "0.1.0",
@@ -98,6 +133,11 @@ class ConfigurationValidatorTest {
         pushManifestRepository: Boolean = false,
         validatePackage: Boolean = true,
         swiftExecutable: String = "swift",
+        gitExecutable: String = "git",
+        commandTimeoutSeconds: Int = 600,
+        githubRequestTimeoutSeconds: Int = 120,
+        githubMaxRetries: Int = 2,
+        failOnDirtyManifestRepository: Boolean = true,
         minimumIosVersion: String = "16.0",
         minimumMacosVersion: String? = "",
         minimumTvosVersion: String? = "",
@@ -121,6 +161,11 @@ class ConfigurationValidatorTest {
             pushManifestRepository = pushManifestRepository,
             validatePackage = validatePackage,
             swiftExecutable = swiftExecutable,
+            gitExecutable = gitExecutable,
+            commandTimeoutSeconds = commandTimeoutSeconds,
+            githubRequestTimeoutSeconds = githubRequestTimeoutSeconds,
+            githubMaxRetries = githubMaxRetries,
+            failOnDirtyManifestRepository = failOnDirtyManifestRepository,
             minimumIosVersion = minimumIosVersion,
             minimumMacosVersion = minimumMacosVersion,
             minimumTvosVersion = minimumTvosVersion,

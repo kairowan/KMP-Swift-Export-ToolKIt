@@ -4,6 +4,8 @@ import io.github.haonan.kmp.apple.packager.internal.ProcessRunner
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -24,6 +26,9 @@ abstract class ZipArtifactTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val xcframeworkDirectory: DirectoryProperty
 
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
     @get:OutputFile
     abstract val archiveFile: RegularFileProperty
 
@@ -39,7 +44,10 @@ abstract class ZipArtifactTask : DefaultTask() {
 
         // `ditto` preserves the bundle layout and parent directory in the way Apple tooling
         // expects for `.xcframework` archives distributed through SwiftPM.
-        ProcessRunner(execOperations).run(
+        ProcessRunner(
+            execOperations = execOperations,
+            commandTimeoutSeconds = commandTimeoutSeconds.get(),
+        ).run(
             commandLine = listOf(
                 "ditto",
                 "-c",

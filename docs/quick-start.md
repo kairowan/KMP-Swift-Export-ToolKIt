@@ -42,6 +42,10 @@ kmpApplePackager {
     minimumIosVersion.set("16.0")
     minimumMacosVersion.set("13.0")
     swiftExecutable.set("swift")
+    gitExecutable.set("git")
+    commandTimeoutSeconds.set(600)
+    githubRequestTimeoutSeconds.set(120)
+    githubMaxRetries.set(2)
 }
 ```
 
@@ -54,6 +58,13 @@ and set `pushManifestRepository=true` only when you are ready to update the remo
 Additional SwiftPM deployment targets are optional. You can also set
 `minimumTvosVersion`, `minimumWatchosVersion`, `minimumVisionosVersion`, and
 `minimumMacCatalystVersion` when your XCFramework includes those platform slices.
+
+For production CI, the most relevant operational controls are:
+
+- `commandTimeoutSeconds`: timeout for local commands such as `ditto`, `swift`, and `git`
+- `githubRequestTimeoutSeconds`: per-request timeout for GitHub Releases API calls
+- `githubMaxRetries`: retry budget for transient GitHub failures such as 429 or 5xx
+- `failOnDirtyManifestRepository`: whether a local manifest checkout must be clean before the plugin commits `Package.swift`
 
 ## 4. Publish
 

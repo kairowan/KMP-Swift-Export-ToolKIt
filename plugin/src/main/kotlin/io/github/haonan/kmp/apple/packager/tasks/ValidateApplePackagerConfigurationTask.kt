@@ -70,6 +70,21 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
     abstract val swiftExecutable: Property<String>
 
     @get:Input
+    abstract val gitExecutable: Property<String>
+
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val githubRequestTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val githubMaxRetries: Property<Int>
+
+    @get:Input
+    abstract val failOnDirtyManifestRepository: Property<Boolean>
+
+    @get:Input
     abstract val minimumIosVersion: Property<String>
 
     @get:Input
@@ -117,6 +132,11 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
                 pushManifestRepository = pushManifestRepository.get(),
                 validatePackage = validatePackage.get(),
                 swiftExecutable = swiftExecutable.get(),
+                gitExecutable = gitExecutable.get(),
+                commandTimeoutSeconds = commandTimeoutSeconds.get(),
+                githubRequestTimeoutSeconds = githubRequestTimeoutSeconds.get(),
+                githubMaxRetries = githubMaxRetries.get(),
+                failOnDirtyManifestRepository = failOnDirtyManifestRepository.get(),
                 minimumIosVersion = minimumIosVersion.orNull,
                 minimumMacosVersion = minimumMacosVersion.orNull,
                 minimumTvosVersion = minimumTvosVersion.orNull,

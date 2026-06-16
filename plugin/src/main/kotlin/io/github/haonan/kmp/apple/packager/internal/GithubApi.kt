@@ -4,12 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.io.File
+import java.io.IOException
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
+import java.time.Duration
 import org.gradle.api.GradleException
 
 /**
@@ -19,8 +21,12 @@ import org.gradle.api.GradleException
  */
 internal class GithubApi(
     private val token: String,
+    private val requestTimeoutSeconds: Int,
+    private val maxRetries: Int,
+    private val onRetry: (String) -> Unit = {},
 ) {
     private val client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(requestTimeoutSeconds.toLong()))
         .followRedirects(HttpClient.Redirect.NORMAL)
         .build()
     private val mapper = jacksonObjectMapper()
@@ -115,7 +121,10 @@ internal class GithubApi(
             .POST(HttpRequest.BodyPublishers.ofFile(assetFile.toPath()))
             .build()
 
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        val response = sendRequestWithRetry(
+            request = request,
+            operationDescription = "upload release asset ${assetFile.name}",
+        )
         if (response.statusCode() !in 200..299) {
             throw GradleException(
                 "Failed to upload GitHub release asset: ${response.statusCode()} ${response.body()}"
@@ -143,7 +152,10 @@ internal class GithubApi(
             else -> builder.method(method, HttpRequest.BodyPublishers.noBody())
         }
 
-        val response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+        val response = sendRequestWithRetry(
+            request = builder.build(),
+            operationDescription = "$method $url",
+        )
         if (response.statusCode() !in 200..299 && !(acceptNotFound && response.statusCode() == 404)) {
             throw GradleException(
                 "GitHub API request failed ($method $url): ${response.statusCode()} ${response.body()}"
@@ -154,8 +166,70 @@ internal class GithubApi(
 
     private fun baseRequest(url: String): HttpRequest.Builder {
         return HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(requestTimeoutSeconds.toLong()))
             .header("Authorization", "Bearer $token")
             .header("User-Agent", "kmp-apple-packager")
+    }
+
+    private fun sendRequestWithRetry(
+        request: HttpRequest,
+        operationDescription: String,
+    ): HttpResponse<String> {
+        var attempt = 0
+        var lastFailure: Exception? = null
+
+        while (attempt <= maxRetries) {
+            try {
+                val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+                if (!shouldRetry(response.statusCode()) || attempt == maxRetries) {
+                    return response
+                }
+                onRetry(
+                    "Retrying GitHub API request after HTTP ${response.statusCode()} " +
+                        "during $operationDescription (attempt ${attempt + 2}/${maxRetries + 1})."
+                )
+            } catch (exception: IOException) {
+                if (attempt == maxRetries) {
+                    throw GradleException(
+                        "GitHub API request failed during $operationDescription after ${maxRetries + 1} attempts.",
+                        exception,
+                    )
+                }
+                lastFailure = exception
+                onRetry(
+                    "Retrying GitHub API request after network error during $operationDescription " +
+                        "(attempt ${attempt + 2}/${maxRetries + 1}): ${exception.message.orEmpty()}"
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw GradleException(
+                    "GitHub API request was interrupted during $operationDescription.",
+                    exception,
+                )
+            }
+
+            attempt += 1
+            sleepBeforeRetry(attempt)
+        }
+
+        throw GradleException(
+            "GitHub API request failed during $operationDescription after ${maxRetries + 1} attempts.",
+            lastFailure,
+        )
+    }
+
+    private fun shouldRetry(statusCode: Int): Boolean {
+        return statusCode == 408 || statusCode == 429 || statusCode in 500..599
+    }
+
+    private fun sleepBeforeRetry(attempt: Int) {
+        val backoffMillis = (attempt * 1000L).coerceAtMost(5_000L)
+        try {
+            Thread.sleep(backoffMillis)
+        } catch (exception: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw GradleException("GitHub API retry backoff was interrupted.", exception)
+        }
     }
 }
 

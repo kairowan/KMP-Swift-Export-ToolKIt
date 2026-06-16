@@ -29,6 +29,9 @@ abstract class ValidateSwiftPmTask : DefaultTask() {
     @get:Input
     abstract val swiftExecutable: Property<String>
 
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val manifestFile: RegularFileProperty
@@ -44,6 +47,7 @@ abstract class ValidateSwiftPmTask : DefaultTask() {
 
     init {
         swiftExecutable.convention("swift")
+        commandTimeoutSeconds.convention(600)
     }
 
     @TaskAction
@@ -69,7 +73,10 @@ abstract class ValidateSwiftPmTask : DefaultTask() {
             spec.into(validationDirectory)
         }
 
-        val runner = ProcessRunner(execOperations)
+        val runner = ProcessRunner(
+            execOperations = execOperations,
+            commandTimeoutSeconds = commandTimeoutSeconds.get(),
+        )
         runner.run(listOf(swiftExecutable.get(), "package", "dump-package"), validationDirectory)
         runner.run(listOf(swiftExecutable.get(), "package", "show-dependencies"), validationDirectory)
 

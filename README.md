@@ -31,6 +31,8 @@ This plugin turns that workflow into a repeatable release pipeline.
 - Sync `Package.swift` into a dedicated repository or release branch
 - Validate the generated manifest with `swift package`
 - Emit machine-readable release metadata for CI and downstream automation
+- Use configurable GitHub request retries/timeouts and external command timeouts
+- Protect local manifest repositories from accidental publishes when the checkout is already dirty
 - Print a release summary with checksum, URL, and output paths
 
 ## Project Layout
@@ -62,6 +64,10 @@ kmpApplePackager {
     iosTargets.set(listOf("iosArm64", "iosSimulatorArm64"))
     minimumMacosVersion.set("13.0")
     swiftExecutable.set("swift")
+    gitExecutable.set("git")
+    commandTimeoutSeconds.set(600)
+    githubRequestTimeoutSeconds.set(120)
+    githubMaxRetries.set(2)
 }
 ```
 
@@ -105,6 +111,12 @@ platform slices that actually exist inside the XCFramework you publish.
 Each run also writes a stable JSON metadata file at
 `build/kmpApplePackager/metadata/package-metadata.json`, which is useful for CI steps
 that need the checksum, resolved artifact URL, validation status, or manifest repo result.
+
+For production pipelines, the operational defaults are now explicit:
+
+- `commandTimeoutSeconds=600` for local tools such as `swift`, `git`, and `ditto`
+- `githubRequestTimeoutSeconds=120` with `githubMaxRetries=2` for GitHub Releases API calls
+- `failOnDirtyManifestRepository=true` so local manifest checkouts are rejected if they already contain unrelated changes
 
 ## Samples
 

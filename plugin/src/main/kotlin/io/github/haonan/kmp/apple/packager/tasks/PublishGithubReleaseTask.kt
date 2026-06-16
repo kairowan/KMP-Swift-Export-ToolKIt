@@ -43,6 +43,12 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
     @get:Input
     abstract val publishRelease: Property<Boolean>
 
+    @get:Input
+    abstract val githubRequestTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val githubMaxRetries: Property<Int>
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val archiveFile: RegularFileProperty
@@ -83,7 +89,12 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
             ?: throw GradleException("GITHUB_TOKEN must be available when publishRelease=true")
         val archive = archiveFile.get().asFile
 
-        val api = GithubApi(token)
+        val api = GithubApi(
+            token = token,
+            requestTimeoutSeconds = githubRequestTimeoutSeconds.get(),
+            maxRetries = githubMaxRetries.get(),
+            onRetry = logger::warn,
+        )
         val release = api.getOrCreateRelease(
             repo = repo,
             tag = tag,

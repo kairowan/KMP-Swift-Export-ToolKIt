@@ -1,6 +1,4 @@
 package io.github.haonan.kmp.apple.packager
-
-import io.github.haonan.kmp.apple.packager.internal.toUpperCamelCase
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.ProviderFactory
@@ -26,6 +24,11 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val minimumVisionosVersion: Property<String>
     abstract val minimumMacCatalystVersion: Property<String>
     abstract val swiftExecutable: Property<String>
+    abstract val gitExecutable: Property<String>
+    abstract val commandTimeoutSeconds: Property<Int>
+    abstract val githubRequestTimeoutSeconds: Property<Int>
+    abstract val githubMaxRetries: Property<Int>
+    abstract val failOnDirtyManifestRepository: Property<Boolean>
     abstract val xcodeConfiguration: Property<String>
     abstract val assembleTaskName: Property<String>
     abstract val githubRepo: Property<String>
@@ -57,6 +60,11 @@ abstract class ApplePackagerExtension @Inject constructor(
         minimumVisionosVersion.convention("")
         minimumMacCatalystVersion.convention("")
         swiftExecutable.convention("swift")
+        gitExecutable.convention("git")
+        commandTimeoutSeconds.convention(600)
+        githubRequestTimeoutSeconds.convention(120)
+        githubMaxRetries.convention(2)
+        failOnDirtyManifestRepository.convention(true)
         xcodeConfiguration.convention("release")
         githubToken.convention(providers.environmentVariable("GITHUB_TOKEN"))
         publishRelease.convention(true)
@@ -78,4 +86,18 @@ abstract class ApplePackagerExtension @Inject constructor(
             }
         )
     }
+}
+
+private fun String.toUpperCamelCase(): String {
+    return split(Regex("[^A-Za-z0-9]+"))
+        .filter(String::isNotBlank)
+        .joinToString("") { token ->
+            token.replaceFirstChar { char ->
+                if (char.isLowerCase()) {
+                    char.titlecase()
+                } else {
+                    char.toString()
+                }
+            }
+        }
 }

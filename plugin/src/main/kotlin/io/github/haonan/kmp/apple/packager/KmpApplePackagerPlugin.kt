@@ -86,6 +86,11 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.pushManifestRepository.set(extension.pushManifestRepository)
             task.validatePackage.set(extension.validatePackage)
             task.swiftExecutable.set(extension.swiftExecutable)
+            task.gitExecutable.set(extension.gitExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
+            task.githubRequestTimeoutSeconds.set(extension.githubRequestTimeoutSeconds)
+            task.githubMaxRetries.set(extension.githubMaxRetries)
+            task.failOnDirtyManifestRepository.set(extension.failOnDirtyManifestRepository)
             task.minimumIosVersion.set(extension.minimumIosVersion)
             task.minimumMacosVersion.set(extension.minimumMacosVersion)
             task.minimumTvosVersion.set(extension.minimumTvosVersion)
@@ -111,6 +116,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.group = taskGroup
             task.description = "Zips the assembled XCFramework so it can be published as a SwiftPM binary artifact."
             task.dependsOn(assembleTask)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.xcframeworkDirectory.set(assembleTask.flatMap { assembledTask -> assembledTask.outputDirectory })
             task.archiveFile.set(archiveOutputFile)
         }
@@ -120,6 +126,8 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.group = taskGroup
             task.description = "Computes the SwiftPM checksum for the generated XCFramework archive."
             task.dependsOn(zipTask)
+            task.swiftExecutable.set(extension.swiftExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.archiveFile.set(zipTask.flatMap { zipArtifactTask -> zipArtifactTask.archiveFile })
             task.checksumFile.set(checksumOutputFile)
         }
@@ -158,6 +166,8 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.releaseName.set(extension.releaseName)
             task.releaseNotes.set(extension.releaseNotes)
             task.publishRelease.set(extension.publishRelease)
+            task.githubRequestTimeoutSeconds.set(extension.githubRequestTimeoutSeconds)
+            task.githubMaxRetries.set(extension.githubMaxRetries)
             task.archiveFile.set(archiveOutputFile)
             task.publishMetadataFile.set(publishMetadataOutputFile)
         }
@@ -180,6 +190,9 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.manifestRepositorySubdirectory.set(extension.manifestRepositorySubdirectory)
             task.manifestCommitUserName.set(extension.manifestCommitUserName)
             task.manifestCommitUserEmail.set(extension.manifestCommitUserEmail)
+            task.gitExecutable.set(extension.gitExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
+            task.failOnDirtyManifestRepository.set(extension.failOnDirtyManifestRepository)
             task.publishManifestRepository.set(extension.publishManifestRepository)
             task.pushManifestRepository.set(extension.pushManifestRepository)
             task.publishMetadataFile.set(manifestRepositoryMetadataOutputFile)
@@ -193,6 +206,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.dependsOn(manifestTask, publishTask)
             task.validatePackage.set(extension.validatePackage)
             task.swiftExecutable.set(extension.swiftExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.manifestFile.set(manifestOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
         }
