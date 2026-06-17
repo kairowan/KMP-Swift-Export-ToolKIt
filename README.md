@@ -28,6 +28,7 @@ This plugin turns that workflow into a repeatable release pipeline.
 - Configure SwiftPM deployment targets for iOS and additional Apple platforms
 - Fail fast on invalid publish configuration before the heavy build work starts
 - Publish archives to GitHub Releases
+- Reuse already-published GitHub release assets when the checksum matches, and fail safely on mismatched reruns by default
 - Sync `Package.swift` into a dedicated repository or release branch
 - Support both regular git checkouts and git worktrees when syncing manifest repositories
 - Validate the generated manifest with `swift package`
@@ -72,6 +73,7 @@ kmpApplePackager {
     commandTimeoutSeconds.set(600)
     githubRequestTimeoutSeconds.set(120)
     githubMaxRetries.set(2)
+    overwriteExistingReleaseAsset.set(false)
     verifyPublishedArtifact.set(true)
     artifactDownloadTimeoutSeconds.set(300)
     artifactDownloadMaxRetries.set(2)
@@ -118,14 +120,22 @@ platform slices that actually exist inside the XCFramework you publish.
 
 Each run also writes a stable JSON metadata file at
 `build/kmpApplePackager/metadata/package-metadata.json`, which is useful for CI steps
-that need the checksum, resolved artifact URL, validation status, or manifest repo result.
+that need the checksum, resolved artifact URL, release asset status, validation status,
+or manifest repo result.
 
 For production pipelines, the operational defaults are now explicit:
 
 - `commandTimeoutSeconds=600` for local tools such as `swift`, `git`, and `ditto`
 - `githubRequestTimeoutSeconds=120` with `githubMaxRetries=2` for GitHub Releases API calls
+- `overwriteExistingReleaseAsset=false` so reruns on the same tag never replace a published zip unless you opt in explicitly
 - `verifyPublishedArtifact=true` with `artifactDownloadTimeoutSeconds=300` and `artifactDownloadMaxRetries=2` for post-publish download verification
 - `failOnDirtyManifestRepository=true` so local manifest checkouts are rejected if they already contain unrelated changes
+
+If the same GitHub release tag already contains an asset with the target file name, the plugin now:
+
+- reuses the existing asset when its checksum already matches the local archive
+- fails the publish when the checksum differs
+- replaces the asset only when `overwriteExistingReleaseAsset=true`
 
 When manifest publishing is enabled, the plugin can work with either a normal git checkout or a
 git worktree via `manifestRepositoryPath`. Managed remote checkouts are refreshed before branch

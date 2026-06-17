@@ -13,4 +13,15 @@ internal object GithubUrls {
     ): String {
         return "https://github.com/$repo/releases/download/$tag/$assetName"
     }
+
+    fun releaseAssetApiUrl(
+        repo: String,
+        assetId: String,
+    ): String {
+        return "https://api.github.com/repos/$repo/releases/assets/$assetId"
+    }
+
+    fun releasesPageUrl(repo: String): String {
+        return "https://github.com/$repo/releases"
+    }
 }

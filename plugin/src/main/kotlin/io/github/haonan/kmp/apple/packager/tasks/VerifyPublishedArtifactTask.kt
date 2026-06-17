@@ -1,6 +1,7 @@
 package io.github.haonan.kmp.apple.packager.tasks
 
 import io.github.haonan.kmp.apple.packager.internal.ArtifactLocationResolver
+import io.github.haonan.kmp.apple.packager.internal.GithubReleaseAssetDownloadResolver
 import io.github.haonan.kmp.apple.packager.internal.HttpFileDownloader
 import io.github.haonan.kmp.apple.packager.internal.ProcessRunner
 import java.io.File
@@ -182,16 +183,16 @@ abstract class VerifyPublishedArtifactTask : DefaultTask() {
         val repo = publishMetadata["repo"].orEmpty()
         val token = githubToken.orNull?.trim().orEmpty()
         if (assetId.isNotEmpty() && repo.isNotEmpty() && token.isNotEmpty()) {
+            val target = GithubReleaseAssetDownloadResolver.resolve(
+                repo = repo,
+                assetId = assetId,
+                token = token,
+                browserDownloadUrl = publishMetadata["downloadUrl"],
+            )
             return VerificationTarget(
-                downloadUrl = "https://api.github.com/repos/$repo/releases/assets/$assetId",
-                displayUrl = publishMetadata["downloadUrl"].orEmpty().ifEmpty {
-                    "https://github.com/$repo/releases"
-                },
-                headers = mapOf(
-                    "Accept" to "application/octet-stream",
-                    "Authorization" to "Bearer $token",
-                    "X-GitHub-Api-Version" to "2022-11-28",
-                ),
+                downloadUrl = target.downloadUrl,
+                displayUrl = target.displayUrl,
+                headers = target.headers,
             )
         }
 

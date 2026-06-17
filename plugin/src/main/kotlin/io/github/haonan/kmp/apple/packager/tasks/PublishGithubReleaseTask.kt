@@ -2,6 +2,14 @@ package io.github.haonan.kmp.apple.packager.tasks
 
 import io.github.haonan.kmp.apple.packager.internal.ArtifactLocationResolver
 import io.github.haonan.kmp.apple.packager.internal.GithubApi
+import io.github.haonan.kmp.apple.packager.internal.GithubAsset
+import io.github.haonan.kmp.apple.packager.internal.GithubRelease
+import io.github.haonan.kmp.apple.packager.internal.GithubReleaseAssetDownloadResolver
+import io.github.haonan.kmp.apple.packager.internal.HttpFileDownloader
+import io.github.haonan.kmp.apple.packager.internal.ReleaseAssetConflictAction
+import io.github.haonan.kmp.apple.packager.internal.ReleaseAssetConflictResolver
+import io.github.haonan.kmp.apple.packager.internal.Sha256Hasher
+import java.io.File
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.RegularFileProperty
@@ -50,6 +58,15 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
     abstract val githubMaxRetries: Property<Int>
 
     @get:Input
+    abstract val overwriteExistingReleaseAsset: Property<Boolean>
+
+    @get:Input
+    abstract val artifactDownloadTimeoutSeconds: Property<Int>
+
+    @get:Input
+    abstract val artifactDownloadMaxRetries: Property<Int>
+
+    @get:Input
     @get:Optional
     abstract val artifactUrlOverride: Property<String>
 
@@ -78,6 +95,7 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
             output.writeText(
                 buildString {
                     appendLine("published=false")
+                    appendLine("assetStatus=skipped")
                     appendLine("downloadUrl=$downloadUrl")
                 }
             )
@@ -106,22 +124,114 @@ abstract class PublishGithubReleaseTask : DefaultTask() {
             releaseNotes = releaseNotes.get(),
         )
 
-        // Replace an existing asset with the same name so reruns on the same tag remain deterministic.
-        release.assets.firstOrNull { asset -> asset.name == archive.name }?.let { existingAsset ->
-            api.deleteAsset(repo, existingAsset.id)
-        }
+        val assetPublication = release.assets.firstOrNull { asset -> asset.name == archive.name }
+            ?.let { existingAsset ->
+                publishAgainstExistingAsset(
+                    api = api,
+                    repo = repo,
+                    tag = tag,
+                    token = token,
+                    archive = archive,
+                    release = release,
+                    existingAsset = existingAsset,
+                )
+            }
+            ?: api.uploadAsset(release, archive).let { uploadedAsset ->
+                PublishedAsset(
+                    asset = uploadedAsset,
+                    status = "uploaded",
+                    logMessage = "Published ${archive.name} to ${uploadedAsset.browserDownloadUrl}",
+                )
+            }
 
-        val asset = api.uploadAsset(release, archive)
         output.writeText(
             buildString {
                 appendLine("published=true")
                 appendLine("repo=$repo")
-                appendLine("assetId=${asset.id}")
-                appendLine("downloadUrl=${asset.browserDownloadUrl}")
+                appendLine("assetId=${assetPublication.asset.id}")
+                appendLine("assetStatus=${assetPublication.status}")
+                appendLine("downloadUrl=${assetPublication.asset.browserDownloadUrl}")
                 appendLine("releaseUrl=${release.htmlUrl.orEmpty()}")
             }
         )
 
-        logger.lifecycle("Published ${archive.name} to ${asset.browserDownloadUrl}")
+        logger.lifecycle(assetPublication.logMessage)
+    }
+
+    private fun publishAgainstExistingAsset(
+        api: GithubApi,
+        repo: String,
+        tag: String,
+        token: String,
+        archive: File,
+        release: GithubRelease,
+        existingAsset: GithubAsset,
+    ): PublishedAsset {
+        val localChecksum = Sha256Hasher.compute(archive)
+        val existingAssetChecksum = downloadExistingAssetChecksum(
+            repo = repo,
+            token = token,
+            assetId = existingAsset.id.toString(),
+            browserDownloadUrl = existingAsset.browserDownloadUrl,
+            destinationFile = File(temporaryDir, "existing-${archive.name}"),
+        )
+        val resolution = ReleaseAssetConflictResolver.resolve(
+            assetName = archive.name,
+            tag = tag,
+            localChecksum = localChecksum,
+            existingChecksum = existingAssetChecksum,
+            overwriteExistingReleaseAsset = overwriteExistingReleaseAsset.get(),
+        )
+
+        return when (resolution.action) {
+            ReleaseAssetConflictAction.REUSE_EXISTING -> PublishedAsset(
+                asset = existingAsset,
+                status = "reused",
+                logMessage = "${resolution.message} Reusing ${existingAsset.browserDownloadUrl}",
+            )
+
+            ReleaseAssetConflictAction.REPLACE_EXISTING -> {
+                api.deleteAsset(repo, existingAsset.id)
+                val uploadedAsset = api.uploadAsset(release, archive)
+                PublishedAsset(
+                    asset = uploadedAsset,
+                    status = "replaced",
+                    logMessage = "${resolution.message} Uploaded replacement to ${uploadedAsset.browserDownloadUrl}",
+                )
+            }
+
+            ReleaseAssetConflictAction.FAIL -> throw GradleException(resolution.message)
+        }
+    }
+
+    private fun downloadExistingAssetChecksum(
+        repo: String,
+        token: String,
+        assetId: String,
+        browserDownloadUrl: String,
+        destinationFile: File,
+    ): String {
+        val target = GithubReleaseAssetDownloadResolver.resolve(
+            repo = repo,
+            assetId = assetId,
+            token = token,
+            browserDownloadUrl = browserDownloadUrl,
+        )
+        HttpFileDownloader(
+            requestTimeoutSeconds = artifactDownloadTimeoutSeconds.get(),
+            maxRetries = artifactDownloadMaxRetries.get(),
+            onRetry = logger::warn,
+        ).download(
+            url = target.downloadUrl,
+            destinationFile = destinationFile,
+            headers = target.headers,
+        )
+        return Sha256Hasher.compute(destinationFile)
     }
 }
+
+private data class PublishedAsset(
+    val asset: GithubAsset,
+    val status: String,
+    val logMessage: String,
+)

@@ -63,6 +63,11 @@ kmpApplePackager {
             .map(String::toInt)
             .orElse(2)
     )
+    overwriteExistingReleaseAsset.set(
+        providers.gradleProperty("kmp.apple.packager.overwriteExistingReleaseAsset")
+            .map(String::toBoolean)
+            .orElse(false)
+    )
     verifyPublishedArtifact.set(
         providers.gradleProperty("kmp.apple.packager.verifyPublishedArtifact")
             .map(String::toBoolean)

@@ -48,6 +48,7 @@ kmpApplePackager {
     commandTimeoutSeconds.set(600)
     githubRequestTimeoutSeconds.set(120)
     githubMaxRetries.set(2)
+    overwriteExistingReleaseAsset.set(false)
     verifyPublishedArtifact.set(true)
     artifactDownloadTimeoutSeconds.set(300)
     artifactDownloadMaxRetries.set(2)
@@ -70,6 +71,7 @@ For production CI, the most relevant operational controls are:
 - `commandTimeoutSeconds`: timeout for local commands such as `ditto`, `swift`, and `git`
 - `githubRequestTimeoutSeconds`: per-request timeout for GitHub Releases API calls
 - `githubMaxRetries`: retry budget for transient GitHub failures such as 429 or 5xx
+- `overwriteExistingReleaseAsset`: whether a publish rerun may replace an existing GitHub release asset with the same file name
 - `failOnDirtyManifestRepository`: whether a local manifest checkout must be clean before the plugin commits `Package.swift`
 - `manifestCommitUserName` / `manifestCommitUserEmail`: explicit commit identity for CI, otherwise the task falls back to `git config user.name/user.email`
 

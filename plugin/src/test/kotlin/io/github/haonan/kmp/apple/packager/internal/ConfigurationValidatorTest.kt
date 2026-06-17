@@ -118,6 +118,23 @@ class ConfigurationValidatorTest {
     }
 
     @Test
+    fun `warns when release asset overwrite is enabled`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                publishRelease = true,
+                overwriteExistingReleaseAsset = true,
+            )
+        )
+
+        assertTrue(result.errors.isEmpty())
+        assertTrue(
+            result.warnings.contains(
+                "overwriteExistingReleaseAsset=true allows reruns on the same tag to replace an already published GitHub release asset."
+            )
+        )
+    }
+
+    @Test
     fun `warns when manifest commit identity falls back to git config`() {
         val result = ConfigurationValidator.validate(
             validSpec(
@@ -197,6 +214,7 @@ class ConfigurationValidatorTest {
         commandTimeoutSeconds: Int = 600,
         githubRequestTimeoutSeconds: Int = 120,
         githubMaxRetries: Int = 2,
+        overwriteExistingReleaseAsset: Boolean = false,
         verifyPublishedArtifact: Boolean = true,
         artifactDownloadTimeoutSeconds: Int = 300,
         artifactDownloadMaxRetries: Int = 2,
@@ -230,6 +248,7 @@ class ConfigurationValidatorTest {
             commandTimeoutSeconds = commandTimeoutSeconds,
             githubRequestTimeoutSeconds = githubRequestTimeoutSeconds,
             githubMaxRetries = githubMaxRetries,
+            overwriteExistingReleaseAsset = overwriteExistingReleaseAsset,
             verifyPublishedArtifact = verifyPublishedArtifact,
             artifactDownloadTimeoutSeconds = artifactDownloadTimeoutSeconds,
             artifactDownloadMaxRetries = artifactDownloadMaxRetries,

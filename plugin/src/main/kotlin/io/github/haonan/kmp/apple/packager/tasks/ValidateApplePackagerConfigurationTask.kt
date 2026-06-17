@@ -90,6 +90,9 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
     abstract val githubMaxRetries: Property<Int>
 
     @get:Input
+    abstract val overwriteExistingReleaseAsset: Property<Boolean>
+
+    @get:Input
     abstract val verifyPublishedArtifact: Property<Boolean>
 
     @get:Input
@@ -155,6 +158,7 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
                 commandTimeoutSeconds = commandTimeoutSeconds.get(),
                 githubRequestTimeoutSeconds = githubRequestTimeoutSeconds.get(),
                 githubMaxRetries = githubMaxRetries.get(),
+                overwriteExistingReleaseAsset = overwriteExistingReleaseAsset.get(),
                 verifyPublishedArtifact = verifyPublishedArtifact.get(),
                 artifactDownloadTimeoutSeconds = artifactDownloadTimeoutSeconds.get(),
                 artifactDownloadMaxRetries = artifactDownloadMaxRetries.get(),

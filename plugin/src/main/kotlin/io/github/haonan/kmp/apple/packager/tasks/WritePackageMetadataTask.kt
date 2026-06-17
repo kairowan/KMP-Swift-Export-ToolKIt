@@ -126,6 +126,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             ),
             release = ReleaseMetadata(
                 published = parseBoolean(releaseMetadata["published"]),
+                assetStatus = releaseMetadata["assetStatus"],
                 releaseUrl = releaseMetadata["releaseUrl"],
                 downloadUrl = releaseMetadata["downloadUrl"],
             ),
@@ -256,6 +257,7 @@ internal data class ManifestMetadata(
 
 internal data class ReleaseMetadata(
     val published: Boolean?,
+    val assetStatus: String?,
     val releaseUrl: String?,
     val downloadUrl: String?,
 )

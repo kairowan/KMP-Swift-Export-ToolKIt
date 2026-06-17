@@ -102,6 +102,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             assetName = archiveFileName.get(),
         )
         val published = readProperty(publishMetadataFile.get().asFile, "published") ?: "unknown"
+        val releaseAssetStatus = readProperty(publishMetadataFile.get().asFile, "assetStatus") ?: "unknown"
         val manifestRepositoryStatus = readProperty(manifestRepositoryMetadataFile.get().asFile, "status") ?: "unknown"
         val manifestRepository = readProperty(manifestRepositoryMetadataFile.get().asFile, "repository").orEmpty()
         val manifestRepositoryBranch = readProperty(manifestRepositoryMetadataFile.get().asFile, "branch").orEmpty()
@@ -128,6 +129,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |platforms: $platforms
             |manifest: ${manifestFile.get().asFile.absolutePath}
             |published: $published
+            |releaseAssetStatus: $releaseAssetStatus
             |manifestRepositoryStatus: $manifestRepositoryStatus
             |manifestRepository: $manifestRepository
             |manifestRepositoryBranch: $manifestRepositoryBranch

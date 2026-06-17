@@ -47,8 +47,8 @@ Every run now emits:
 - `build/kmpApplePackager/metadata/package-metadata.json`
 
 The JSON metadata file is intended for CI consumption. It includes the resolved artifact URL,
-checksum, platform declarations, publish status, manifest repository result, validation status,
-and artifact verification status.
+checksum, platform declarations, publish status, release asset status, manifest repository result,
+validation status, and artifact verification status.
 
 For more predictable production builds, consider setting:
 
@@ -56,11 +56,18 @@ For more predictable production builds, consider setting:
 -Pkmp.apple.packager.commandTimeoutSeconds=600 \
 -Pkmp.apple.packager.githubRequestTimeoutSeconds=120 \
 -Pkmp.apple.packager.githubMaxRetries=2 \
+-Pkmp.apple.packager.overwriteExistingReleaseAsset=false \
 -Pkmp.apple.packager.manifestCommitUserName='CI Release Bot' \
 -Pkmp.apple.packager.manifestCommitUserEmail='ci@example.com' \
 -Pkmp.apple.packager.artifactDownloadTimeoutSeconds=300 \
 -Pkmp.apple.packager.artifactDownloadMaxRetries=2
 ```
+
+With that default, re-running the same release tag is still safe:
+
+- if the existing GitHub asset already matches the local archive checksum, the plugin reuses it
+- if the checksum differs, the publish fails instead of mutating the released zip
+- set `-Pkmp.apple.packager.overwriteExistingReleaseAsset=true` only for deliberate repair workflows
 
 When you publish into a local manifest checkout, the default
 `-Pkmp.apple.packager.failOnDirtyManifestRepository=true` will block the release if that checkout

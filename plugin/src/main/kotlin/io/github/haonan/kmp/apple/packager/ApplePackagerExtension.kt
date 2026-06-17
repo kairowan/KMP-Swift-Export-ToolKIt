@@ -28,6 +28,7 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val commandTimeoutSeconds: Property<Int>
     abstract val githubRequestTimeoutSeconds: Property<Int>
     abstract val githubMaxRetries: Property<Int>
+    abstract val overwriteExistingReleaseAsset: Property<Boolean>
     abstract val verifyPublishedArtifact: Property<Boolean>
     abstract val artifactDownloadTimeoutSeconds: Property<Int>
     abstract val artifactDownloadMaxRetries: Property<Int>
@@ -67,6 +68,7 @@ abstract class ApplePackagerExtension @Inject constructor(
         commandTimeoutSeconds.convention(600)
         githubRequestTimeoutSeconds.convention(120)
         githubMaxRetries.convention(2)
+        overwriteExistingReleaseAsset.convention(false)
         verifyPublishedArtifact.convention(true)
         artifactDownloadTimeoutSeconds.convention(300)
         artifactDownloadMaxRetries.convention(2)

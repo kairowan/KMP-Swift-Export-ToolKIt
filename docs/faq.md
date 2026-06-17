@@ -61,6 +61,17 @@ kmpApplePackager {
 
 For dry-runs it skips automatically unless you provide a real `artifactUrlOverride`.
 
+## What happens if I rerun the same GitHub release tag?
+
+The plugin treats release assets as immutable by default.
+
+If the release already contains the target zip name, it first compares checksums:
+
+- matching checksum: reuse the existing asset and continue
+- different checksum: fail the publish
+
+Only set `overwriteExistingReleaseAsset=true` when you intentionally want to replace the asset.
+
 ## Can `manifestRepositoryPath` point to a git worktree?
 
 Yes.

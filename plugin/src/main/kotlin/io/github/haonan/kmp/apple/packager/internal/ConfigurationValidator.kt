@@ -29,6 +29,7 @@ internal data class ApplePackagerConfigurationSpec(
     val commandTimeoutSeconds: Int,
     val githubRequestTimeoutSeconds: Int,
     val githubMaxRetries: Int,
+    val overwriteExistingReleaseAsset: Boolean,
     val verifyPublishedArtifact: Boolean,
     val artifactDownloadTimeoutSeconds: Int,
     val artifactDownloadMaxRetries: Int,
@@ -122,6 +123,9 @@ internal object ConfigurationValidator {
             }
             if (spec.githubMaxRetries < 0) {
                 errors += "githubMaxRetries must be 0 or greater."
+            }
+            if (spec.overwriteExistingReleaseAsset) {
+                warnings += "overwriteExistingReleaseAsset=true allows reruns on the same tag to replace an already published GitHub release asset."
             }
             if (!spec.verifyPublishedArtifact) {
                 warnings += "verifyPublishedArtifact=false disables the post-publish download and checksum verification step."
