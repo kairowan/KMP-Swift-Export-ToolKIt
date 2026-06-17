@@ -31,9 +31,13 @@ jobs:
       - name: Validate generated metadata
         run: |
           test -f samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+          test -f samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
           test -f samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
           test -f samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
           ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+          ruby -e 'props = File.read(ARGV[0]); abort("artifact structure validation did not pass") unless props.include?("status=valid")' \
+            samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
+          python3 -c 'import zipfile; archive = "samples/kmp-library/build/kmpApplePackager/distributions/Shared-0.1.0.xcframework.zip"; offenders = [name for name in zipfile.ZipFile(archive).namelist() if name.startswith("__MACOSX/")]; (_ for _ in ()).throw(SystemExit(f"unexpected __MACOSX entries: {offenders}")) if offenders else None'
 
       - name: Local artifact download verification
         run: |

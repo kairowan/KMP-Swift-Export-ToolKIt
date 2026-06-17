@@ -43,7 +43,8 @@ abstract class ZipArtifactTask : DefaultTask() {
         archive.delete()
 
         // `ditto` preserves the bundle layout and parent directory in the way Apple tooling
-        // expects for `.xcframework` archives distributed through SwiftPM.
+        // expects for `.xcframework` archives distributed through SwiftPM. `--norsrc`
+        // keeps the release zip free from `__MACOSX` metadata entries.
         ProcessRunner(
             execOperations = execOperations,
             commandTimeoutSeconds = commandTimeoutSeconds.get(),
@@ -52,7 +53,7 @@ abstract class ZipArtifactTask : DefaultTask() {
                 "ditto",
                 "-c",
                 "-k",
-                "--sequesterRsrc",
+                "--norsrc",
                 "--keepParent",
                 xcframework.absolutePath,
                 archive.absolutePath,

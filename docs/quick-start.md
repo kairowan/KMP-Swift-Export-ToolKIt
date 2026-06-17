@@ -86,6 +86,7 @@ GITHUB_TOKEN=ghp_your_token ./gradlew publishApplePackage
 The plugin writes artifacts into `build/kmpApplePackager/`:
 
 - `configuration/report.properties`
+- `artifactStructure/report.properties`
 - `xcframework/`
 - `distributions/`
 - `checksum/`

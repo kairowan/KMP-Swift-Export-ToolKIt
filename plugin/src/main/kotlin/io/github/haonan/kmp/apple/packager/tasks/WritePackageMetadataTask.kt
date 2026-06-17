@@ -92,6 +92,10 @@ abstract class WritePackageMetadataTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
+    abstract val artifactStructureReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
     abstract val configurationValidationReportFile: RegularFileProperty
 
     @get:OutputFile
@@ -110,6 +114,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
         val manifestRepositoryMetadata = readProperties(manifestRepositoryMetadataFile.get().asFile)
         val validationMetadata = readProperties(validationReportFile.get().asFile)
         val artifactVerificationMetadata = readProperties(artifactVerificationReportFile.get().asFile)
+        val artifactStructureMetadata = readProperties(artifactStructureReportFile.get().asFile)
         val configurationMetadata = readProperties(configurationValidationReportFile.get().asFile)
 
         val metadata = PackageMetadata(
@@ -154,6 +159,15 @@ abstract class WritePackageMetadataTask : DefaultTask() {
                 expectedChecksum = artifactVerificationMetadata["expectedChecksum"],
                 actualChecksum = artifactVerificationMetadata["actualChecksum"],
                 reason = artifactVerificationMetadata["reason"],
+            ),
+            artifactStructure = ArtifactStructureMetadata(
+                status = artifactStructureMetadata["status"] ?: "unknown",
+                rootDirectory = artifactStructureMetadata["rootDirectory"],
+                formatVersion = artifactStructureMetadata["formatVersion"],
+                libraryCount = artifactStructureMetadata["libraryCount"]?.toIntOrNull(),
+                supportedPlatforms = readCommaSeparatedValues(artifactStructureMetadata["supportedPlatforms"]),
+                archiveTopLevelEntries = readCommaSeparatedValues(artifactStructureMetadata["archiveTopLevelEntries"]),
+                hasMacosMetadataEntries = parseBoolean(artifactStructureMetadata["hasMacosMetadataEntries"]),
             ),
             configuration = ConfigurationMetadata(
                 status = configurationMetadata["status"] ?: "unknown",
@@ -210,6 +224,13 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             .map { (_, value) -> value }
     }
 
+    private fun readCommaSeparatedValues(value: String?): List<String> {
+        return value.orEmpty()
+            .split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+    }
+
     private fun readProperties(file: File): Map<String, String> {
         if (!file.exists()) {
             return emptyMap()
@@ -237,6 +258,7 @@ internal data class PackageMetadata(
     val manifestRepository: ManifestRepositoryMetadata,
     val validation: ValidationMetadata,
     val artifactVerification: ArtifactVerificationMetadata,
+    val artifactStructure: ArtifactStructureMetadata,
     val configuration: ConfigurationMetadata,
 )
 
@@ -288,6 +310,16 @@ internal data class ArtifactVerificationMetadata(
     val expectedChecksum: String?,
     val actualChecksum: String?,
     val reason: String?,
+)
+
+internal data class ArtifactStructureMetadata(
+    val status: String,
+    val rootDirectory: String?,
+    val formatVersion: String?,
+    val libraryCount: Int?,
+    val supportedPlatforms: List<String>,
+    val archiveTopLevelEntries: List<String>,
+    val hasMacosMetadataEntries: Boolean?,
 )
 
 internal data class ConfigurationMetadata(

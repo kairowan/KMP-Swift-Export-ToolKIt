@@ -43,12 +43,13 @@ branches checked out side by side.
 Every run now emits:
 
 - `build/kmpApplePackager/configuration/report.properties`
+- `build/kmpApplePackager/artifactStructure/report.properties`
 - `build/kmpApplePackager/artifactVerification/report.properties`
 - `build/kmpApplePackager/metadata/package-metadata.json`
 
 The JSON metadata file is intended for CI consumption. It includes the resolved artifact URL,
 checksum, platform declarations, publish status, release asset status, manifest repository result,
-validation status, and artifact verification status.
+validation status, artifact structure status, and artifact verification status.
 
 For more predictable production builds, consider setting:
 

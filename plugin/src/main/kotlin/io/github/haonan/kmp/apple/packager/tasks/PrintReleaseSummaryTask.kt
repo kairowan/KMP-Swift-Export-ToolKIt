@@ -90,6 +90,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
+    abstract val artifactStructureReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
     abstract val metadataFile: RegularFileProperty
 
     @TaskAction
@@ -110,6 +114,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         val manifestRepositoryPushed = readProperty(manifestRepositoryMetadataFile.get().asFile, "pushed") ?: "unknown"
         val validationStatus = readProperty(validationReportFile.get().asFile, "status") ?: "unknown"
         val artifactVerificationStatus = readProperty(artifactVerificationReportFile.get().asFile, "status") ?: "unknown"
+        val artifactStructureStatus = readProperty(artifactStructureReportFile.get().asFile, "status") ?: "unknown"
         val platforms = buildList {
             minimumIosVersion.orNull.toPlatformSummary("iOS")?.let(::add)
             minimumMacosVersion.orNull.toPlatformSummary("macOS")?.let(::add)
@@ -136,6 +141,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |manifestRepositoryRemote: $manifestRepositoryRemote
             |manifestRepositoryPushed: $manifestRepositoryPushed
             |validation: $validationStatus
+            |artifactStructure: $artifactStructureStatus
             |artifactVerification: $artifactVerificationStatus
             |metadata: ${metadataFile.get().asFile.absolutePath}
             """.trimMargin()

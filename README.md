@@ -23,6 +23,7 @@ This plugin turns that workflow into a repeatable release pipeline.
 
 - Build release XCFrameworks for Apple targets
 - Zip the artifact with the `.xcframework` bundle kept intact
+- Validate XCFramework slices and zip layout before publishing
 - Compute SwiftPM checksums automatically
 - Generate `Package.swift` for binary targets
 - Configure SwiftPM deployment targets for iOS and additional Apple platforms
@@ -97,6 +98,7 @@ Then run:
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
 - `verifyPublishedArtifact`
+- `validateAppleArtifactStructure`
 - `writeApplePackageMetadata`
 - `publishApplePackage`
 

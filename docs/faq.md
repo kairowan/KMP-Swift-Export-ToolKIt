@@ -61,6 +61,18 @@ kmpApplePackager {
 
 For dry-runs it skips automatically unless you provide a real `artifactUrlOverride`.
 
+## Does the plugin validate the XCFramework itself before publishing?
+
+Yes.
+
+The release pipeline now validates both the assembled `.xcframework` directory and the generated
+zip archive before it attempts publishing. That check catches issues such as:
+
+- missing `Info.plist`
+- broken `AvailableLibraries` references
+- manifest platforms that do not exist in the XCFramework
+- `__MACOSX` metadata entries or unexpected top-level directories inside the zip
+
 ## What happens if I rerun the same GitHub release tag?
 
 The plugin treats release assets as immutable by default.

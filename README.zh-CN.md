@@ -21,6 +21,7 @@ KMP Apple Packager 是一个 Gradle 插件，用来自动完成 Apple XCFramewor
 
 - 为 Apple 目标构建 release XCFramework
 - 以保留 `.xcframework` 结构的方式打 zip 包
+- 在发布前校验 XCFramework slice 和 zip 结构
 - 自动计算 SwiftPM checksum
 - 为 binary target 生成 `Package.swift`
 - 可为 iOS 以及更多 Apple 平台声明 SwiftPM deployment target
@@ -95,6 +96,7 @@ kmpApplePackager {
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
 - `verifyPublishedArtifact`
+- `validateAppleArtifactStructure`
 - `writeApplePackageMetadata`
 - `publishApplePackage`
 

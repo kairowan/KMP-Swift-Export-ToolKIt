@@ -7,6 +7,7 @@ import io.github.haonan.kmp.apple.packager.tasks.PrintReleaseSummaryTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishGithubReleaseTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishPackageManifestRepositoryTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateApplePackagerConfigurationTask
+import io.github.haonan.kmp.apple.packager.tasks.ValidateAppleArtifactStructureTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateSwiftPmTask
 import io.github.haonan.kmp.apple.packager.tasks.VerifyPublishedArtifactTask
 import io.github.haonan.kmp.apple.packager.tasks.WritePackageMetadataTask
@@ -62,6 +63,9 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         val validationReportOutputFile = layout.buildDirectory.file("kmpApplePackager/validation/report.properties")
         val artifactVerificationReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/artifactVerification/report.properties"
+        )
+        val artifactStructureReportOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/artifactStructure/report.properties"
         )
         val configurationValidationReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/configuration/report.properties"
@@ -135,11 +139,34 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         checksumTask.configure { task ->
             task.group = taskGroup
             task.description = "Computes the SwiftPM checksum for the generated XCFramework archive."
-            task.dependsOn(zipTask)
             task.swiftExecutable.set(extension.swiftExecutable)
             task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.archiveFile.set(zipTask.flatMap { zipArtifactTask -> zipArtifactTask.archiveFile })
             task.checksumFile.set(checksumOutputFile)
+        }
+
+        val artifactStructureTask = tasks.register(
+            "validateAppleArtifactStructure",
+            ValidateAppleArtifactStructureTask::class.java,
+        )
+        artifactStructureTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Validates the generated XCFramework and zip archive structure before publishing."
+            task.dependsOn(configurationValidationTask, assembleTask, zipTask)
+            task.packageName.set(extension.packageName)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
+            task.xcframeworkDirectory.set(assembledFrameworkOutputDir)
+            task.archiveFile.set(archiveOutputFile)
+            task.validationReportFile.set(artifactStructureReportOutputFile)
+        }
+
+        checksumTask.configure { task ->
+            task.dependsOn(artifactStructureTask)
         }
 
         val manifestTask = tasks.register("generateApplePackageManifest", GeneratePackageManifestTask::class.java)
@@ -169,7 +196,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.group = taskGroup
             task.description = "Creates or reuses a GitHub release and uploads the XCFramework archive."
             task.dependsOn(configurationValidationTask)
-            task.dependsOn(zipTask)
+            task.dependsOn(artifactStructureTask)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.githubToken.set(extension.githubToken)
@@ -254,6 +281,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.description = "Writes a machine-readable JSON summary of the generated package outputs."
             task.dependsOn(
                 configurationValidationTask,
+                artifactStructureTask,
                 manifestTask,
                 publishTask,
                 publishManifestRepositoryTask,
@@ -278,6 +306,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
             task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
+            task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
             task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
         }
@@ -311,6 +340,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
             task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
+            task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
         }
 
