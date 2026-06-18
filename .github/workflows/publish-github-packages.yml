@@ -1,0 +1,52 @@
+name: Publish GitHub Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Final package version, for example 1.0.0"
+        required: false
+        type: string
+
+jobs:
+  publish-github-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Resolve release version
+        id: release_version
+        run: |
+          if [ -n "${{ inputs.release_version }}" ]; then
+            version="${{ inputs.release_version }}"
+          else
+            version="$(bash ./scripts/current-release-version.sh)"
+          fi
+
+          if printf '%s' "${version}" | grep -qi 'snapshot'; then
+            echo "GitHub Packages publication requires a final version, not ${version}."
+            exit 1
+          fi
+
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify plugin build
+        run: ./gradlew :plugin:check -PreleaseVersion=${{ steps.release_version.outputs.value }}
+
+      - name: Publish plugin artifacts to GitHub Packages
+        run: ./gradlew :plugin:publishAllPublicationsToGitHubPackagesRepository -PreleaseVersion=${{ steps.release_version.outputs.value }}
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}

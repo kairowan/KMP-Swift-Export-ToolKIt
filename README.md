@@ -190,6 +190,7 @@ which generates the local path-based manifest and builds the Swift consumer thro
 - [Compatibility](docs/compatibility.md)
 - [FAQ](docs/faq.md)
 - [Release Readiness Workflow](.github/workflows/release-readiness.yml)
+- [GitHub Packages Publish Workflow](.github/workflows/publish-github-packages.yml)
 - [Plugin Release](docs/plugin-release.md)
 - [Release Checklist](docs/release-checklist.md)
 

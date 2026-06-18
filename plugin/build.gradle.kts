@@ -16,6 +16,16 @@ java {
 }
 
 val repositoryUrl = "https://github.com/kairowan/KMP-Swift-Export-ToolKIt"
+val githubPackagesOwner = providers.gradleProperty("githubPackagesOwner")
+    .orElse(providers.environmentVariable("GITHUB_REPOSITORY_OWNER"))
+    .orElse("kairowan")
+val githubPackagesRepository = providers.gradleProperty("githubPackagesRepository")
+    .orElse(
+        providers.environmentVariable("GITHUB_REPOSITORY").map { repositoryReference ->
+            repositoryReference.substringAfter('/')
+        }
+    )
+    .orElse("KMP-Swift-Export-ToolKIt")
 
 gradlePlugin {
     website.set(repositoryUrl)
@@ -79,6 +89,22 @@ publishing {
         maven {
             name = "pluginStaging"
             url = layout.buildDirectory.dir("staging-repo").get().asFile.toURI()
+        }
+        maven {
+            name = "GitHubPackages"
+            url = uri(
+                githubPackagesOwner.zip(githubPackagesRepository) { owner, repository ->
+                    "https://maven.pkg.github.com/$owner/$repository"
+                }
+            )
+            credentials {
+                username = providers.gradleProperty("gpr.user")
+                    .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+                    .orNull
+                password = providers.gradleProperty("gpr.key")
+                    .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+                    .orNull
+            }
         }
     }
 }

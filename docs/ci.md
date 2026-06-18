@@ -6,6 +6,7 @@ The repository ships with two workflow templates:
 
 - `ci.yml`: builds and checks the plugin, exercises the sample KMP library in dry-run mode, and compiles a Swift consumer against the generated package
 - `release.yml`: demonstrates a tagged sample release flow on macOS with GitHub Releases
+- `publish-github-packages.yml`: publishes the Gradle plugin Maven artifacts to GitHub Packages for repository-scoped package discovery
 
 ## Required secrets
 
