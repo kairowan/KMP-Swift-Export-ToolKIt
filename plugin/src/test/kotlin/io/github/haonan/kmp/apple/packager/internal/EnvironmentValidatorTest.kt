@@ -9,6 +9,7 @@ class EnvironmentValidatorTest {
         val result = EnvironmentValidator.validate(
             spec = validSpec(),
             environment = validEnvironment(),
+            requirements = releaseRequirements(),
         )
 
         assertTrue(result.errors.isEmpty())
@@ -16,12 +17,13 @@ class EnvironmentValidatorTest {
     }
 
     @Test
-    fun `rejects non macos hosts`() {
+    fun `rejects non macos hosts when release tooling is required`() {
         val result = EnvironmentValidator.validate(
             spec = validSpec(),
             environment = validEnvironment(
                 operatingSystemName = "Linux",
             ),
+            requirements = releaseRequirements(),
         )
 
         assertTrue(
@@ -32,12 +34,29 @@ class EnvironmentValidatorTest {
     }
 
     @Test
+    fun `allows non macos hosts when release tooling is not required`() {
+        val result = EnvironmentValidator.validate(
+            spec = validSpec(validatePackage = false),
+            environment = validEnvironment(
+                operatingSystemName = "Linux",
+                swift = unavailableProbe("/missing/swift"),
+                xcodebuild = unavailableProbe("xcodebuild"),
+                ditto = unavailableProbe("ditto"),
+            ),
+            requirements = EnvironmentValidationRequirements.None,
+        )
+
+        assertTrue(result.errors.isEmpty())
+    }
+
+    @Test
     fun `rejects missing swift toolchain`() {
         val result = EnvironmentValidator.validate(
             spec = validSpec(swiftExecutable = "/missing/swift"),
             environment = validEnvironment(
                 swift = unavailableProbe("/missing/swift"),
             ),
+            requirements = releaseRequirements(),
         )
 
         assertTrue(
@@ -57,6 +76,7 @@ class EnvironmentValidatorTest {
             environment = validEnvironment(
                 git = unavailableProbe("/missing/git"),
             ),
+            requirements = releaseRequirements(requireGit = true),
         )
 
         assertTrue(
@@ -74,6 +94,7 @@ class EnvironmentValidatorTest {
                 xcodebuild = unavailableProbe("xcodebuild"),
                 ditto = unavailableProbe("ditto"),
             ),
+            requirements = releaseRequirements(),
         )
 
         assertTrue(
@@ -92,6 +113,7 @@ class EnvironmentValidatorTest {
         swiftExecutable: String = "swift",
         gitExecutable: String = "git",
         publishManifestRepository: Boolean = false,
+        validatePackage: Boolean = true,
     ): ApplePackagerConfigurationSpec {
         return ApplePackagerConfigurationSpec(
             packageName = "Shared",
@@ -111,7 +133,7 @@ class EnvironmentValidatorTest {
             publishRelease = false,
             publishManifestRepository = publishManifestRepository,
             pushManifestRepository = false,
-            validatePackage = true,
+            validatePackage = validatePackage,
             swiftExecutable = swiftExecutable,
             gitExecutable = gitExecutable,
             commandTimeoutSeconds = 600,
@@ -166,6 +188,16 @@ class EnvironmentValidatorTest {
             available = false,
             output = null,
             failureMessage = "Failed to start command: $executable --version",
+        )
+    }
+
+    private fun releaseRequirements(requireGit: Boolean = false): EnvironmentValidationRequirements {
+        return EnvironmentValidationRequirements(
+            requireMacOs = true,
+            requireSwift = true,
+            requireGit = requireGit,
+            requireXcodebuild = true,
+            requireDitto = true,
         )
     }
 }

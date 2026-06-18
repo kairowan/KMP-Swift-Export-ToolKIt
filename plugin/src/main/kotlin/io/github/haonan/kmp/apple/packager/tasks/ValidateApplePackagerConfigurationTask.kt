@@ -5,6 +5,7 @@ import io.github.haonan.kmp.apple.packager.internal.ApplePackagerHostEnvironment
 import io.github.haonan.kmp.apple.packager.internal.CommandProbeResult
 import io.github.haonan.kmp.apple.packager.internal.CommandAvailabilityProbe
 import io.github.haonan.kmp.apple.packager.internal.ConfigurationValidator
+import io.github.haonan.kmp.apple.packager.internal.EnvironmentValidationRequirementsResolver
 import io.github.haonan.kmp.apple.packager.internal.EnvironmentValidator
 import io.github.haonan.kmp.apple.packager.internal.merge
 import org.gradle.api.DefaultTask
@@ -221,7 +222,16 @@ abstract class ValidateApplePackagerConfigurationTask : DefaultTask() {
         )
 
         val configurationResult = ConfigurationValidator.validate(configurationSpec)
-        val environmentResult = EnvironmentValidator.validate(configurationSpec, environment)
+        val environmentRequirements = EnvironmentValidationRequirementsResolver.resolve(
+            requestedTaskPaths = project.gradle.startParameter.taskNames,
+            scheduledTaskPaths = project.gradle.taskGraph.allTasks.map { task -> task.path },
+            publishManifestRepository = publishManifestRepository.get(),
+        )
+        val environmentResult = EnvironmentValidator.validate(
+            spec = configurationSpec,
+            environment = environment,
+            requirements = environmentRequirements,
+        )
         val result = configurationResult.merge(environmentResult)
 
         reportFile.writeText(
