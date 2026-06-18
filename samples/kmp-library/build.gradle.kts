@@ -3,14 +3,50 @@ plugins {
 }
 
 group = "com.example"
-version = "0.1.0"
+
+val samplePackageVersion = providers.gradleProperty("kmp.apple.packager.sampleVersion")
+    .orElse("1.0.0")
+
+version = samplePackageVersion.get()
 
 kmpApplePackager {
     packageName.set("Shared")
     version.set(project.version.toString())
     artifactModule.set(":shared")
+    githubServerUrl.set(
+        providers.gradleProperty("kmp.apple.packager.githubServerUrl")
+            .orElse("https://github.com")
+    )
+    githubApiUrl.set(
+        providers.gradleProperty("kmp.apple.packager.githubApiUrl")
+            .orElse(
+                githubServerUrl.map { serverUrl ->
+                    val normalizedServerUrl = serverUrl.trim().trimEnd('/')
+                    if (normalizedServerUrl.equals("https://github.com", ignoreCase = true)) {
+                        "https://api.github.com"
+                    } else {
+                        "$normalizedServerUrl/api/v3"
+                    }
+                }
+            )
+    )
     githubRepo.set(
         providers.environmentVariable("GITHUB_REPOSITORY").orElse("yourname/shared-package")
+    )
+    githubTag.set(
+        providers.gradleProperty("kmp.apple.packager.githubTag")
+            .orElse(project.version.toString())
+    )
+    releaseName.set(
+        providers.gradleProperty("kmp.apple.packager.releaseName")
+            .orElse(githubTag)
+    )
+    releaseNotes.set(
+        providers.environmentVariable("KMP_APPLE_PACKAGER_RELEASE_NOTES")
+            .orElse(
+                providers.gradleProperty("kmp.apple.packager.releaseNotes")
+            )
+            .orElse("")
     )
     artifactUrlOverride.set(
         providers.gradleProperty("kmp.apple.packager.artifactUrlOverride")
@@ -132,4 +168,41 @@ kmpApplePackager {
             .map(String::toBoolean)
             .orElse(false)
     )
+}
+
+val iosConsumerProjectDir = projectDir.resolve("../ios-consumer").canonicalFile
+val localPackageDirectory = layout.buildDirectory.dir("kmpApplePackager/localPackage")
+val derivedDataDirectory = layout.buildDirectory.dir("kmpApplePackager/smoke/DerivedData")
+
+tasks.register<Exec>("smokeTestIosConsumer") {
+    group = "verification"
+    description = "Builds the sample Swift consumer against the generated local package with xcodebuild."
+    dependsOn("generateAppleLocalPackageManifest")
+    onlyIf {
+        val isMacOs = System.getProperty("os.name").contains("mac", ignoreCase = true)
+        if (!isMacOs) {
+            logger.lifecycle("Skipping smokeTestIosConsumer because xcodebuild requires macOS.")
+        }
+        isMacOs
+    }
+    workingDir = iosConsumerProjectDir
+    environment("SHARED_PACKAGE_PATH", localPackageDirectory.get().asFile.absolutePath)
+    commandLine(
+        "xcodebuild",
+        "-scheme",
+        "SmokeConsumer",
+        "-destination",
+        "generic/platform=iOS Simulator",
+        "-derivedDataPath",
+        derivedDataDirectory.get().asFile.absolutePath,
+        "build",
+    )
+    doFirst {
+        delete(
+            iosConsumerProjectDir.resolve(".build"),
+            iosConsumerProjectDir.resolve(".swiftpm"),
+            iosConsumerProjectDir.resolve("Package.resolved"),
+            derivedDataDirectory.get().asFile,
+        )
+    }
 }

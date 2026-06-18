@@ -83,6 +83,27 @@ class ConfigurationValidatorTest {
     }
 
     @Test
+    fun `rejects invalid github server and api urls`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                githubServerUrl = "github.example.com",
+                githubApiUrl = "ssh://github.example.com/api/v3",
+            )
+        )
+
+        assertTrue(
+            result.errors.contains(
+                "githubServerUrl must be an absolute http or https URL."
+            )
+        )
+        assertTrue(
+            result.errors.contains(
+                "githubApiUrl must be an absolute http or https URL."
+            )
+        )
+    }
+
+    @Test
     fun `rejects non-positive timeouts and negative retry counts`() {
         val result = ConfigurationValidator.validate(
             validSpec(
@@ -192,12 +213,31 @@ class ConfigurationValidatorTest {
         )
     }
 
+    @Test
+    fun `warns when release support assets are disabled`() {
+        val result = ConfigurationValidator.validate(
+            validSpec(
+                publishRelease = true,
+                publishReleaseSupportAssets = false,
+            )
+        )
+
+        assertTrue(result.errors.isEmpty())
+        assertTrue(
+            result.warnings.contains(
+                "publishReleaseSupportAssets=false skips uploading Package.swift, checksum, and metadata snapshot assets to the GitHub release."
+            )
+        )
+    }
+
     private fun validSpec(
         packageName: String = "Shared",
-        packageVersion: String = "0.1.0",
+        packageVersion: String = "1.0.0",
         artifactUrlOverride: String? = null,
+        githubServerUrl: String = "https://github.com",
+        githubApiUrl: String = "https://api.github.com",
         githubRepo: String = "kairowan/shared-package",
-        githubTag: String = "0.1.0",
+        githubTag: String = "1.0.0",
         githubTokenConfigured: Boolean = true,
         manifestRepository: String? = null,
         manifestRepositoryPath: String? = null,
@@ -216,6 +256,7 @@ class ConfigurationValidatorTest {
         githubMaxRetries: Int = 2,
         overwriteExistingReleaseAsset: Boolean = false,
         verifyPublishedArtifact: Boolean = true,
+        publishReleaseSupportAssets: Boolean = true,
         artifactDownloadTimeoutSeconds: Int = 300,
         artifactDownloadMaxRetries: Int = 2,
         failOnDirtyManifestRepository: Boolean = true,
@@ -230,6 +271,8 @@ class ConfigurationValidatorTest {
             packageName = packageName,
             packageVersion = packageVersion,
             artifactUrlOverride = artifactUrlOverride,
+            githubServerUrl = githubServerUrl,
+            githubApiUrl = githubApiUrl,
             githubRepo = githubRepo,
             githubTag = githubTag,
             githubTokenConfigured = githubTokenConfigured,
@@ -250,6 +293,7 @@ class ConfigurationValidatorTest {
             githubMaxRetries = githubMaxRetries,
             overwriteExistingReleaseAsset = overwriteExistingReleaseAsset,
             verifyPublishedArtifact = verifyPublishedArtifact,
+            publishReleaseSupportAssets = publishReleaseSupportAssets,
             artifactDownloadTimeoutSeconds = artifactDownloadTimeoutSeconds,
             artifactDownloadMaxRetries = artifactDownloadMaxRetries,
             failOnDirtyManifestRepository = failOnDirtyManifestRepository,

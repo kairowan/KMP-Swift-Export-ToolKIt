@@ -1,10 +1,14 @@
 package io.github.haonan.kmp.apple.packager.internal
 
 import java.io.File
+import java.io.StringReader
+import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 import org.gradle.api.GradleException
 import org.w3c.dom.Element
 import org.w3c.dom.Node
+import org.xml.sax.EntityResolver
+import org.xml.sax.InputSource
 
 /**
  * Parses the subset of XCFramework `Info.plist` metadata needed for artifact validation.
@@ -17,13 +21,17 @@ internal object XcframeworkInfoPlistParser {
             throw GradleException("XCFramework Info.plist does not exist at ${file.absolutePath}.")
         }
 
-        val document = DocumentBuilderFactory.newInstance()
-            .apply {
-                isNamespaceAware = false
-                isIgnoringComments = true
-                isCoalescing = true
-            }
+        val document = newSecureDocumentBuilderFactory()
             .newDocumentBuilder()
+            .apply {
+                // XCFramework plists often include the Apple DOCTYPE declaration. Resolve it to an
+                // empty in-memory source so parsing stays offline and does not expand external entities.
+                setEntityResolver(
+                    EntityResolver { _, _ ->
+                        InputSource(StringReader(""))
+                    }
+                )
+            }
             .parse(file)
         val plistElement = document.documentElement
         if (plistElement.tagName != "plist") {
@@ -70,8 +78,12 @@ internal object XcframeworkInfoPlistParser {
     }
 
     private fun Map<String, Element>.readRequiredString(key: String): String {
-        return readOptionalString(key)
+        val value = readOptionalString(key)
             ?: throw GradleException("Missing required plist string value for key $key.")
+        if (value.isBlank()) {
+            throw GradleException("Required plist string value for key $key must not be blank.")
+        }
+        return value
     }
 
     private fun Map<String, Element>.readOptionalString(key: String): String? {
@@ -120,6 +132,20 @@ internal object XcframeworkInfoPlistParser {
             }
         }
         return elements
+    }
+
+    private fun newSecureDocumentBuilderFactory(): DocumentBuilderFactory {
+        return DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = false
+            isIgnoringComments = true
+            isCoalescing = true
+            isXIncludeAware = false
+            setExpandEntityReferences(false)
+            setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+            setFeature("http://xml.org/sax/features/external-general-entities", false)
+            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        }
     }
 }
 

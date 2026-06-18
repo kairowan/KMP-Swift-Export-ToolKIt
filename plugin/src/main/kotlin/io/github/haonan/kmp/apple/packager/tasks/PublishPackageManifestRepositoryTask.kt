@@ -58,6 +58,9 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
     abstract val manifestCommitUserEmail: Property<String>
 
     @get:Input
+    abstract val githubServerUrl: Property<String>
+
+    @get:Input
     abstract val gitExecutable: Property<String>
 
     @get:Input
@@ -123,7 +126,10 @@ abstract class PublishPackageManifestRepositoryTask : DefaultTask() {
                         "when publishManifestRepository=true."
                 )
             }
-            val reference = RepositoryReferenceResolver.resolve(repositoryValue)
+            val reference = RepositoryReferenceResolver.resolve(
+                repository = repositoryValue,
+                githubServerUrl = githubServerUrl.get(),
+            )
             val checkoutDirectory = File(temporaryDir, "manifestRepositoryCheckout")
             prepareRemoteCheckout(checkoutDirectory, reference.cloneSource, runner, gitExecutableValue)
             PreparedRepository(

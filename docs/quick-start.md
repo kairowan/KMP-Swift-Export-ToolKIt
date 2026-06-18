@@ -4,7 +4,7 @@
 
 ```kotlin
 plugins {
-    id("io.github.haonan.kmp.apple.packager") version "0.1.0"
+    id("io.github.haonan.kmp.apple.packager") version "1.0.0"
 }
 ```
 
@@ -34,8 +34,10 @@ kotlin {
 ```kotlin
 kmpApplePackager {
     packageName.set("Shared")
-    version.set("0.1.0")
+    version.set("1.0.0")
     artifactModule.set(":shared")
+    githubServerUrl.set("https://github.com")
+    githubApiUrl.set("https://api.github.com")
     githubRepo.set("yourname/shared-package")
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
@@ -50,6 +52,7 @@ kmpApplePackager {
     githubMaxRetries.set(2)
     overwriteExistingReleaseAsset.set(false)
     verifyPublishedArtifact.set(true)
+    publishReleaseSupportAssets.set(true)
     artifactDownloadTimeoutSeconds.set(300)
     artifactDownloadMaxRetries.set(2)
 }
@@ -72,14 +75,38 @@ For production CI, the most relevant operational controls are:
 - `githubRequestTimeoutSeconds`: per-request timeout for GitHub Releases API calls
 - `githubMaxRetries`: retry budget for transient GitHub failures such as 429 or 5xx
 - `overwriteExistingReleaseAsset`: whether a publish rerun may replace an existing GitHub release asset with the same file name
+- `publishReleaseSupportAssets`: whether the release should also carry named manifest, checksum, and metadata snapshot support files
 - `failOnDirtyManifestRepository`: whether a local manifest checkout must be clean before the plugin commits `Package.swift`
 - `manifestCommitUserName` / `manifestCommitUserEmail`: explicit commit identity for CI, otherwise the task falls back to `git config user.name/user.email`
+
+Before expensive work begins, the plugin now also validates that the host machine can actually run
+the Apple packaging toolchain. If `swift`, `git`, `xcodebuild`, or `ditto` are missing when they
+are needed, the build fails during `validateApplePackagerConfiguration` instead of later in the
+release pipeline.
+
+For GitHub Enterprise, set `githubServerUrl` to your web host, such as
+`https://github.example.com`. The plugin derives `githubApiUrl` as
+`https://github.example.com/api/v3` by default, but you can override it explicitly when your API
+is exposed through a different base path.
 
 ## 4. Publish
 
 ```bash
 GITHUB_TOKEN=ghp_your_token ./gradlew publishApplePackage
 ```
+
+## 5. Smoke-test a Swift consumer locally
+
+For the sample repository, you can also compile the Swift consumer against the generated local
+path-based manifest:
+
+```bash
+./gradlew -p samples/kmp-library smokeTestIosConsumer
+```
+
+That task uses `xcodebuild` for `generic/platform=iOS Simulator`, which is the correct validation
+mode for an iOS-only binary target. A plain `swift build` on macOS does not exercise the same
+consumer path.
 
 ## Outputs
 
@@ -91,8 +118,12 @@ The plugin writes artifacts into `build/kmpApplePackager/`:
 - `distributions/`
 - `checksum/`
 - `package/Package.swift`
+- `localPackage/Package.swift`
 - `artifactVerification/report.properties`
 - `metadata/package-metadata.json`
+- `release/support-assets.properties`
+- `release/assets/`
+- `release/bundle/`
 - `release/publish.properties`
 - `packageRepository/publish.properties`
 - `validation/report.properties`

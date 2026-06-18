@@ -10,6 +10,7 @@ import org.gradle.api.GradleException
 internal object ArtifactLocationResolver {
     fun resolve(
         artifactUrlOverride: String?,
+        githubServerUrl: String,
         githubRepo: String?,
         githubTag: String?,
         assetName: String,
@@ -22,7 +23,7 @@ internal object ArtifactLocationResolver {
         val repo = githubRepo?.trim().orEmpty()
         val tag = githubTag?.trim().orEmpty()
         if (repo.isNotEmpty() && tag.isNotEmpty()) {
-            return GithubUrls.releaseDownloadUrl(repo, tag, assetName)
+            return GithubUrls.releaseDownloadUrl(githubServerUrl, repo, tag, assetName)
         }
 
         throw GradleException(

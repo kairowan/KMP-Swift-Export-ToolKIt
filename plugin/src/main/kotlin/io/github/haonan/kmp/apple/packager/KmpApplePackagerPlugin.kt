@@ -1,10 +1,13 @@
 package io.github.haonan.kmp.apple.packager
 
 import io.github.haonan.kmp.apple.packager.tasks.AssembleXCFrameworkTask
+import io.github.haonan.kmp.apple.packager.tasks.AssembleReleaseBundleTask
 import io.github.haonan.kmp.apple.packager.tasks.ComputeChecksumTask
 import io.github.haonan.kmp.apple.packager.tasks.GeneratePackageManifestTask
+import io.github.haonan.kmp.apple.packager.tasks.GenerateLocalPackageManifestTask
 import io.github.haonan.kmp.apple.packager.tasks.PrintReleaseSummaryTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishGithubReleaseTask
+import io.github.haonan.kmp.apple.packager.tasks.PublishGithubReleaseSupportAssetsTask
 import io.github.haonan.kmp.apple.packager.tasks.PublishPackageManifestRepositoryTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateApplePackagerConfigurationTask
 import io.github.haonan.kmp.apple.packager.tasks.ValidateAppleArtifactStructureTask
@@ -29,7 +32,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
 
         extension.version.convention(
             providers.provider {
-                project.version.toString().takeUnless { it.isBlank() || it == "unspecified" } ?: "0.1.0"
+                project.version.toString().takeUnless { it.isBlank() || it == "unspecified" } ?: "1.0.0"
             }
         )
 
@@ -56,6 +59,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             }
         )
         val manifestOutputFile = layout.buildDirectory.file("kmpApplePackager/package/Package.swift")
+        val localManifestOutputFile = layout.buildDirectory.file("kmpApplePackager/localPackage/Package.swift")
         val publishMetadataOutputFile = layout.buildDirectory.file("kmpApplePackager/release/publish.properties")
         val manifestRepositoryMetadataOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/packageRepository/publish.properties"
@@ -64,11 +68,33 @@ class KmpApplePackagerPlugin : Plugin<Project> {
         val artifactVerificationReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/artifactVerification/report.properties"
         )
+        val releaseSupportAssetsReportOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/release/support-assets.properties"
+        )
+        val releaseSupportAssetsOutputDirectory = layout.buildDirectory.dir(
+            "kmpApplePackager/release/assets"
+        )
+        val releaseBundleOutputDirectory = layout.buildDirectory.dir(
+            providers.provider {
+                "kmpApplePackager/release/bundle/${extension.packageName.get()}-${extension.version.get()}-release-bundle"
+            }
+        )
+        val releaseBundleArchiveOutputFile = layout.buildDirectory.file(
+            providers.provider {
+                "kmpApplePackager/release/bundle/${extension.packageName.get()}-${extension.version.get()}-release-bundle.zip"
+            }
+        )
+        val releaseBundleReportOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/release/bundle/report.properties"
+        )
         val artifactStructureReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/artifactStructure/report.properties"
         )
         val configurationValidationReportOutputFile = layout.buildDirectory.file(
             "kmpApplePackager/configuration/report.properties"
+        )
+        val coreMetadataOutputFile = layout.buildDirectory.file(
+            "kmpApplePackager/metadata/package-metadata-release-upload.json"
         )
         val metadataOutputFile = layout.buildDirectory.file("kmpApplePackager/metadata/package-metadata.json")
 
@@ -82,6 +108,8 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.packageName.set(extension.packageName)
             task.packageVersion.set(extension.version)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
+            task.githubApiUrl.set(extension.githubApiUrl)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.githubTokenConfigured.set(extension.githubToken.map(String::isNotBlank).orElse(false))
@@ -102,6 +130,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.githubMaxRetries.set(extension.githubMaxRetries)
             task.overwriteExistingReleaseAsset.set(extension.overwriteExistingReleaseAsset)
             task.verifyPublishedArtifact.set(extension.verifyPublishedArtifact)
+            task.publishReleaseSupportAssets.set(extension.publishReleaseSupportAssets)
             task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
             task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
             task.failOnDirtyManifestRepository.set(extension.failOnDirtyManifestRepository)
@@ -184,6 +213,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
             task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.archiveFileName.set(archiveFileName)
@@ -209,8 +239,30 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
             task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
+            task.githubApiUrl.set(extension.githubApiUrl)
             task.archiveFile.set(archiveOutputFile)
             task.publishMetadataFile.set(publishMetadataOutputFile)
+        }
+
+        val localManifestTask = tasks.register(
+            "generateAppleLocalPackageManifest",
+            GenerateLocalPackageManifestTask::class.java,
+        )
+        localManifestTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Generates a local path-based Package.swift for smoke-testing the assembled XCFramework."
+            task.dependsOn(configurationValidationTask, assembleTask)
+            task.packageName.set(extension.packageName)
+            task.swiftToolsVersion.set(extension.swiftToolsVersion)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
+            task.xcframeworkDirectory.set(assembledFrameworkOutputDir)
+            task.manifestFile.set(localManifestOutputFile)
         }
 
         val publishManifestRepositoryTask = tasks.register(
@@ -231,6 +283,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.manifestRepositorySubdirectory.set(extension.manifestRepositorySubdirectory)
             task.manifestCommitUserName.set(extension.manifestCommitUserName)
             task.manifestCommitUserEmail.set(extension.manifestCommitUserEmail)
+            task.githubServerUrl.set(extension.githubServerUrl)
             task.gitExecutable.set(extension.gitExecutable)
             task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.failOnDirtyManifestRepository.set(extension.failOnDirtyManifestRepository)
@@ -266,6 +319,8 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
             task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
+            task.githubApiUrl.set(extension.githubApiUrl)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.githubToken.set(extension.githubToken)
@@ -275,14 +330,15 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.verificationReportFile.set(artifactVerificationReportOutputFile)
         }
 
-        val metadataTask = tasks.register("writeApplePackageMetadata", WritePackageMetadataTask::class.java)
-        metadataTask.configure { task ->
+        val coreMetadataTask = tasks.register("writeApplePackageCoreMetadata", WritePackageMetadataTask::class.java)
+        coreMetadataTask.configure { task ->
             task.group = taskGroup
-            task.description = "Writes a machine-readable JSON summary of the generated package outputs."
+            task.description = "Writes the metadata snapshot used by downstream publish and audit tasks."
             task.dependsOn(
                 configurationValidationTask,
                 artifactStructureTask,
                 manifestTask,
+                localManifestTask,
                 publishTask,
                 publishManifestRepositoryTask,
                 validateTask,
@@ -297,18 +353,128 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
             task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.archiveFileName.set(archiveFileName)
+            task.swiftExecutable.set(extension.swiftExecutable)
+            task.gitExecutable.set(extension.gitExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
             task.checksumFile.set(checksumOutputFile)
             task.manifestFile.set(manifestOutputFile)
+            task.localManifestFile.set(localManifestOutputFile)
             task.publishMetadataFile.set(publishMetadataOutputFile)
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
             task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
             task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
             task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
+            task.metadataFile.set(coreMetadataOutputFile)
+        }
+
+        val releaseSupportAssetsTask = tasks.register(
+            "publishGithubReleaseSupportAssets",
+            PublishGithubReleaseSupportAssetsTask::class.java,
+        )
+        releaseSupportAssetsTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Uploads Package.swift, checksum, and metadata snapshot files to the GitHub release."
+            task.dependsOn(configurationValidationTask, publishTask, manifestTask, checksumTask, coreMetadataTask)
+            task.packageName.set(extension.packageName)
+            task.packageVersion.set(extension.version)
+            task.publishRelease.set(extension.publishRelease)
+            task.publishReleaseSupportAssets.set(extension.publishReleaseSupportAssets)
+            task.githubRepo.set(extension.githubRepo)
+            task.githubTag.set(extension.githubTag)
+            task.githubToken.set(extension.githubToken)
+            task.githubRequestTimeoutSeconds.set(extension.githubRequestTimeoutSeconds)
+            task.githubMaxRetries.set(extension.githubMaxRetries)
+            task.overwriteExistingReleaseAsset.set(extension.overwriteExistingReleaseAsset)
+            task.artifactDownloadTimeoutSeconds.set(extension.artifactDownloadTimeoutSeconds)
+            task.artifactDownloadMaxRetries.set(extension.artifactDownloadMaxRetries)
+            task.githubServerUrl.set(extension.githubServerUrl)
+            task.githubApiUrl.set(extension.githubApiUrl)
+            task.manifestFile.set(manifestOutputFile)
+            task.checksumFile.set(checksumOutputFile)
+            task.metadataFile.set(coreMetadataOutputFile)
+            task.supportAssetsDirectory.set(releaseSupportAssetsOutputDirectory)
+            task.publishMetadataFile.set(releaseSupportAssetsReportOutputFile)
+        }
+
+        val metadataTask = tasks.register("writeApplePackageMetadata", WritePackageMetadataTask::class.java)
+        metadataTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Writes a machine-readable JSON summary of the generated package outputs."
+            task.dependsOn(coreMetadataTask, releaseSupportAssetsTask)
+            task.packageName.set(extension.packageName)
+            task.packageVersion.set(extension.version)
+            task.minimumIosVersion.set(extension.minimumIosVersion)
+            task.minimumMacosVersion.set(extension.minimumMacosVersion)
+            task.minimumTvosVersion.set(extension.minimumTvosVersion)
+            task.minimumWatchosVersion.set(extension.minimumWatchosVersion)
+            task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
+            task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
+            task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
+            task.githubRepo.set(extension.githubRepo)
+            task.githubTag.set(extension.githubTag)
+            task.archiveFileName.set(archiveFileName)
+            task.swiftExecutable.set(extension.swiftExecutable)
+            task.gitExecutable.set(extension.gitExecutable)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
+            task.checksumFile.set(checksumOutputFile)
+            task.manifestFile.set(manifestOutputFile)
+            task.localManifestFile.set(localManifestOutputFile)
+            task.publishMetadataFile.set(publishMetadataOutputFile)
+            task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
+            task.validationReportFile.set(validationReportOutputFile)
+            task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
+            task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
+            task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
+            task.releaseSupportAssetsReportFile.set(releaseSupportAssetsReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
+        }
+
+        val releaseBundleTask = tasks.register("assembleAppleReleaseBundle", AssembleReleaseBundleTask::class.java)
+        releaseBundleTask.configure { task ->
+            task.group = taskGroup
+            task.description = "Collects release artifacts, reports, and support files into a stable audit bundle."
+            task.dependsOn(
+                configurationValidationTask,
+                artifactStructureTask,
+                manifestTask,
+                localManifestTask,
+                publishTask,
+                publishManifestRepositoryTask,
+                validateTask,
+                artifactVerificationTask,
+                coreMetadataTask,
+                releaseSupportAssetsTask,
+            )
+            task.packageName.set(extension.packageName)
+            task.packageVersion.set(extension.version)
+            task.commandTimeoutSeconds.set(extension.commandTimeoutSeconds)
+            task.archiveFile.set(archiveOutputFile)
+            task.checksumFile.set(checksumOutputFile)
+            task.manifestFile.set(manifestOutputFile)
+            task.localManifestFile.set(localManifestOutputFile)
+            task.publishMetadataFile.set(publishMetadataOutputFile)
+            task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
+            task.validationReportFile.set(validationReportOutputFile)
+            task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
+            task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
+            task.configurationValidationReportFile.set(configurationValidationReportOutputFile)
+            task.releaseSupportAssetsReportFile.set(releaseSupportAssetsReportOutputFile)
+            task.coreMetadataFile.set(coreMetadataOutputFile)
+            task.supportAssetsDirectory.set(releaseSupportAssetsOutputDirectory)
+            task.bundleDirectory.set(releaseBundleOutputDirectory)
+            task.bundleArchiveFile.set(releaseBundleArchiveOutputFile)
+            task.bundleReportFile.set(releaseBundleReportOutputFile)
+        }
+
+        metadataTask.configure { task ->
+            task.dependsOn(releaseBundleTask)
+            task.releaseBundleReportFile.set(releaseBundleReportOutputFile)
         }
 
         val summaryTask = tasks.register("printApplePackageSummary", PrintReleaseSummaryTask::class.java)
@@ -325,6 +491,7 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.minimumVisionosVersion.set(extension.minimumVisionosVersion)
             task.minimumMacCatalystVersion.set(extension.minimumMacCatalystVersion)
             task.artifactUrlOverride.set(extension.artifactUrlOverride)
+            task.githubServerUrl.set(extension.githubServerUrl)
             task.githubRepo.set(extension.githubRepo)
             task.githubTag.set(extension.githubTag)
             task.minimumIosVersion.set(extension.minimumIosVersion)
@@ -336,11 +503,14 @@ class KmpApplePackagerPlugin : Plugin<Project> {
             task.archiveFileName.set(archiveFileName)
             task.checksumFile.set(checksumOutputFile)
             task.manifestFile.set(manifestOutputFile)
+            task.localManifestFile.set(localManifestOutputFile)
             task.publishMetadataFile.set(publishMetadataOutputFile)
             task.manifestRepositoryMetadataFile.set(manifestRepositoryMetadataOutputFile)
             task.validationReportFile.set(validationReportOutputFile)
             task.artifactVerificationReportFile.set(artifactVerificationReportOutputFile)
             task.artifactStructureReportFile.set(artifactStructureReportOutputFile)
+            task.releaseSupportAssetsReportFile.set(releaseSupportAssetsReportOutputFile)
+            task.releaseBundleReportFile.set(releaseBundleReportOutputFile)
             task.metadataFile.set(metadataOutputFile)
         }
 

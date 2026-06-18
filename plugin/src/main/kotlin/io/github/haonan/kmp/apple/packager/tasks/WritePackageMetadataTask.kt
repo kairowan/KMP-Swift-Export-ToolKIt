@@ -2,7 +2,9 @@ package io.github.haonan.kmp.apple.packager.tasks
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.github.haonan.kmp.apple.packager.internal.ArtifactLocationResolver
+import io.github.haonan.kmp.apple.packager.internal.CommandAvailabilityProbe
 import java.io.File
+import java.time.Instant
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
@@ -13,7 +15,9 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.process.ExecOperations
 import org.gradle.work.DisableCachingByDefault
+import javax.inject.Inject
 
 @DisableCachingByDefault(because = "Aggregates release outputs into a machine-readable metadata file for CI and downstream tooling.")
 /**
@@ -56,6 +60,9 @@ abstract class WritePackageMetadataTask : DefaultTask() {
     abstract val artifactUrlOverride: Property<String>
 
     @get:Input
+    abstract val githubServerUrl: Property<String>
+
+    @get:Input
     @get:Optional
     abstract val githubRepo: Property<String>
 
@@ -66,6 +73,15 @@ abstract class WritePackageMetadataTask : DefaultTask() {
     @get:Input
     abstract val archiveFileName: Property<String>
 
+    @get:Input
+    abstract val swiftExecutable: Property<String>
+
+    @get:Input
+    abstract val gitExecutable: Property<String>
+
+    @get:Input
+    abstract val commandTimeoutSeconds: Property<Int>
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val checksumFile: RegularFileProperty
@@ -73,6 +89,10 @@ abstract class WritePackageMetadataTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val manifestFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val localManifestFile: RegularFileProperty
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -98,14 +118,28 @@ abstract class WritePackageMetadataTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val configurationValidationReportFile: RegularFileProperty
 
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val releaseSupportAssetsReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val releaseBundleReportFile: RegularFileProperty
+
     @get:OutputFile
     abstract val metadataFile: RegularFileProperty
+
+    @get:Inject
+    abstract val execOperations: ExecOperations
 
     @TaskAction
     fun writeMetadata() {
         val checksum = checksumFile.get().asFile.readText().trim()
         val artifactUrl = ArtifactLocationResolver.resolve(
             artifactUrlOverride = artifactUrlOverride.orNull,
+            githubServerUrl = githubServerUrl.get(),
             githubRepo = githubRepo.orNull,
             githubTag = githubTag.orNull,
             assetName = archiveFileName.get(),
@@ -116,6 +150,8 @@ abstract class WritePackageMetadataTask : DefaultTask() {
         val artifactVerificationMetadata = readProperties(artifactVerificationReportFile.get().asFile)
         val artifactStructureMetadata = readProperties(artifactStructureReportFile.get().asFile)
         val configurationMetadata = readProperties(configurationValidationReportFile.get().asFile)
+        val releaseSupportAssetsMetadata = releaseSupportAssetsReportFile.orNull?.asFile?.let(::readProperties).orEmpty()
+        val releaseBundleMetadata = releaseBundleReportFile.orNull?.asFile?.let(::readProperties).orEmpty()
 
         val metadata = PackageMetadata(
             packageName = packageName.get(),
@@ -128,6 +164,7 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             ),
             manifest = ManifestMetadata(
                 path = manifestFile.get().asFile.absolutePath,
+                localPath = localManifestFile.get().asFile.absolutePath,
             ),
             release = ReleaseMetadata(
                 published = parseBoolean(releaseMetadata["published"]),
@@ -173,6 +210,19 @@ abstract class WritePackageMetadataTask : DefaultTask() {
                 status = configurationMetadata["status"] ?: "unknown",
                 warnings = readIndexedValues(configurationMetadata, "warning"),
             ),
+            releaseSupportAssets = ReleaseSupportAssetsMetadata(
+                status = releaseSupportAssetsMetadata["status"] ?: "notCaptured",
+                reason = releaseSupportAssetsMetadata["reason"],
+                assets = readReleaseSupportAssets(releaseSupportAssetsMetadata),
+            ),
+            releaseBundle = ReleaseBundleMetadata(
+                status = releaseBundleMetadata["status"] ?: "notCaptured",
+                directory = releaseBundleMetadata["directory"],
+                archive = releaseBundleMetadata["archive"],
+                manifest = releaseBundleMetadata["manifest"],
+                entryCount = releaseBundleMetadata["entryCount"]?.toIntOrNull(),
+            ),
+            environment = buildEnvironmentMetadata(),
         )
 
         val output = metadataFile.get().asFile
@@ -192,6 +242,59 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             minimumWatchosVersion.orNull.toPlatformMetadata("watchOS")?.let(::add)
             minimumVisionosVersion.orNull.toPlatformMetadata("visionOS")?.let(::add)
             minimumMacCatalystVersion.orNull.toPlatformMetadata("macCatalyst")?.let(::add)
+        }
+    }
+
+    private fun buildEnvironmentMetadata(): EnvironmentMetadata {
+        return EnvironmentMetadata(
+            generatedAt = Instant.now().toString(),
+            operatingSystem = OperatingSystemMetadata(
+                name = System.getProperty("os.name").orEmpty(),
+                version = System.getProperty("os.version").orEmpty(),
+                architecture = System.getProperty("os.arch").orEmpty(),
+            ),
+            java = JavaEnvironmentMetadata(
+                version = System.getProperty("java.version").orEmpty(),
+                vendor = System.getProperty("java.vendor").orEmpty(),
+                runtimeVersion = System.getProperty("java.runtime.version").orEmpty(),
+                vmName = System.getProperty("java.vm.name").orEmpty(),
+                home = System.getProperty("java.home").orEmpty(),
+            ),
+            gradle = GradleEnvironmentMetadata(
+                version = project.gradle.gradleVersion,
+            ),
+            tools = ToolchainMetadata(
+                swift = captureToolVersion(swiftExecutable.get(), listOf("--version")),
+                git = captureToolVersion(gitExecutable.get(), listOf("--version")),
+                xcodebuild = captureToolVersion("xcodebuild", listOf("-version")),
+            ),
+        )
+    }
+
+    private fun captureToolVersion(
+        executable: String,
+        arguments: List<String>,
+    ): ToolVersionMetadata {
+        return try {
+            val result = CommandAvailabilityProbe.probe(
+                execOperations = execOperations,
+                executable = executable,
+                arguments = arguments,
+                commandTimeoutSeconds = commandTimeoutSeconds.get(),
+            )
+            ToolVersionMetadata(
+                executable = executable,
+                status = if (result.available) "available" else "unavailable",
+                version = result.output,
+                error = result.failureMessage,
+            )
+        } catch (exception: Exception) {
+            ToolVersionMetadata(
+                executable = executable,
+                status = "unavailable",
+                version = null,
+                error = exception.message?.lineSequence()?.firstOrNull(),
+            )
         }
     }
 
@@ -231,6 +334,22 @@ abstract class WritePackageMetadataTask : DefaultTask() {
             .filter(String::isNotEmpty)
     }
 
+    private fun readReleaseSupportAssets(
+        properties: Map<String, String>,
+    ): List<ReleaseSupportAssetMetadata> {
+        val assetCount = properties["assetCount"]?.toIntOrNull() ?: 0
+        return (0 until assetCount).map { index ->
+            ReleaseSupportAssetMetadata(
+                name = properties["asset${index}Name"].orEmpty(),
+                type = properties["asset${index}Type"],
+                status = properties["asset${index}Status"].orEmpty(),
+                localPath = properties["asset${index}LocalPath"],
+                checksum = properties["asset${index}Checksum"],
+                downloadUrl = properties["asset${index}DownloadUrl"],
+            )
+        }.filter { asset -> asset.name.isNotBlank() }
+    }
+
     private fun readProperties(file: File): Map<String, String> {
         if (!file.exists()) {
             return emptyMap()
@@ -260,6 +379,9 @@ internal data class PackageMetadata(
     val artifactVerification: ArtifactVerificationMetadata,
     val artifactStructure: ArtifactStructureMetadata,
     val configuration: ConfigurationMetadata,
+    val releaseSupportAssets: ReleaseSupportAssetsMetadata,
+    val releaseBundle: ReleaseBundleMetadata,
+    val environment: EnvironmentMetadata,
 )
 
 internal data class PlatformMetadata(
@@ -275,6 +397,7 @@ internal data class ArtifactMetadata(
 
 internal data class ManifestMetadata(
     val path: String,
+    val localPath: String,
 )
 
 internal data class ReleaseMetadata(
@@ -325,4 +448,66 @@ internal data class ArtifactStructureMetadata(
 internal data class ConfigurationMetadata(
     val status: String,
     val warnings: List<String>,
+)
+
+internal data class ReleaseSupportAssetsMetadata(
+    val status: String,
+    val reason: String?,
+    val assets: List<ReleaseSupportAssetMetadata>,
+)
+
+internal data class ReleaseSupportAssetMetadata(
+    val name: String,
+    val type: String?,
+    val status: String,
+    val localPath: String?,
+    val checksum: String?,
+    val downloadUrl: String?,
+)
+
+internal data class ReleaseBundleMetadata(
+    val status: String,
+    val directory: String?,
+    val archive: String?,
+    val manifest: String?,
+    val entryCount: Int?,
+)
+
+internal data class EnvironmentMetadata(
+    val generatedAt: String,
+    val operatingSystem: OperatingSystemMetadata,
+    val java: JavaEnvironmentMetadata,
+    val gradle: GradleEnvironmentMetadata,
+    val tools: ToolchainMetadata,
+)
+
+internal data class OperatingSystemMetadata(
+    val name: String,
+    val version: String,
+    val architecture: String,
+)
+
+internal data class JavaEnvironmentMetadata(
+    val version: String,
+    val vendor: String,
+    val runtimeVersion: String,
+    val vmName: String,
+    val home: String,
+)
+
+internal data class GradleEnvironmentMetadata(
+    val version: String,
+)
+
+internal data class ToolchainMetadata(
+    val swift: ToolVersionMetadata,
+    val git: ToolVersionMetadata,
+    val xcodebuild: ToolVersionMetadata,
+)
+
+internal data class ToolVersionMetadata(
+    val executable: String,
+    val status: String,
+    val version: String?,
+    val error: String?,
 )

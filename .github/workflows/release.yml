@@ -6,6 +6,14 @@ on:
       - "sample-v*"
   workflow_dispatch:
     inputs:
+      release_version:
+        description: "Semantic version for the sample package, for example 1.0.0"
+        required: false
+        type: string
+      release_tag:
+        description: "GitHub release tag for the binary artifact, defaults to sample-v<release_version>"
+        required: false
+        type: string
       publish_manifest_repository:
         description: "Also publish Package.swift into a dedicated repo or branch"
         required: false
@@ -54,6 +62,44 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Resolve sample release version and tag
+        id: release_version
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            version="${{ inputs.release_version }}"
+            tag="${{ inputs.release_tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#sample-v}"
+          fi
+
+          if [ -z "${version}" ]; then
+            echo "Unable to resolve a sample release version."
+            exit 1
+          fi
+
+          if [ -z "${tag}" ]; then
+            tag="sample-v${version}"
+          fi
+
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract sample release notes
+        id: release_notes
+        run: |
+          output_file="${RUNNER_TEMP}/sample-release-notes.md"
+          bash ./scripts/extract-release-notes.sh \
+            "${{ steps.release_version.outputs.value }}" \
+            CHANGELOG.md \
+            "${output_file}"
+
+          {
+            echo "body<<EOF"
+            cat "${output_file}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Validate external manifest repository token
         if: env.PUBLISH_MANIFEST_REPOSITORY == 'true' && env.MANIFEST_REPOSITORY != '' && secrets.MANIFEST_REPOSITORY_TOKEN == ''
         run: |
@@ -90,6 +136,9 @@ jobs:
           fi
 
           ./gradlew -p samples/kmp-library publishApplePackage \
+            -Pkmp.apple.packager.sampleVersion=${{ steps.release_version.outputs.value }} \
+            -Pkmp.apple.packager.githubTag=${{ steps.release_version.outputs.tag }} \
+            -Pkmp.apple.packager.releaseName=${{ steps.release_version.outputs.tag }} \
             -Pkmp.apple.packager.publishRelease=true \
             -Pkmp.apple.packager.overwriteExistingReleaseAsset=${OVERWRITE_EXISTING_RELEASE_ASSET} \
             -Pkmp.apple.packager.validatePackage=true \
@@ -99,6 +148,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GIT_AUTHOR_NAME: "github-actions[bot]"
           GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+          KMP_APPLE_PACKAGER_RELEASE_NOTES: ${{ steps.release_notes.outputs.body }}
 
       - name: Upload package metadata
         if: always()
@@ -106,10 +156,15 @@ jobs:
         with:
           name: sample-package-metadata
           path: |
+            ${{ runner.temp }}/sample-release-notes.md
             samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+            samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
             samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
             samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
             samples/kmp-library/build/kmpApplePackager/release/publish.properties
+            samples/kmp-library/build/kmpApplePackager/release/support-assets.properties
+            samples/kmp-library/build/kmpApplePackager/release/assets
+            samples/kmp-library/build/kmpApplePackager/release/bundle
             samples/kmp-library/build/kmpApplePackager/packageRepository/publish.properties
             samples/kmp-library/build/kmpApplePackager/validation/report.properties
 

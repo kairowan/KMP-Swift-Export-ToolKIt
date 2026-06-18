@@ -6,7 +6,7 @@ No. This project is intentionally narrower. It focuses on packaging and release 
 
 ## Does it support CocoaPods?
 
-Not in the MVP. The first version stays focused on SwiftPM binary target publishing.
+No. Version `1.0.0` stays focused on SwiftPM binary target publishing.
 
 ## Does it generate Swift wrappers?
 
@@ -32,6 +32,37 @@ kmpApplePackager {
     swiftExecutable.set("/usr/bin/swift")
 }
 ```
+
+## What happens if the build machine is missing Apple tooling?
+
+The plugin now fails during `validateApplePackagerConfiguration` before the heavy release work
+starts.
+
+The configuration report includes host and tool availability fields for:
+
+- `swift`
+- `git`
+- `xcodebuild`
+- `ditto`
+
+Check `build/kmpApplePackager/configuration/report.properties` first when a new CI runner or local
+machine cannot package the Apple artifact.
+
+## Does it work with GitHub Enterprise?
+
+Yes.
+
+Set:
+
+```kotlin
+kmpApplePackager {
+    githubServerUrl.set("https://github.example.com")
+    githubApiUrl.set("https://github.example.com/api/v3")
+}
+```
+
+If your GitHub Enterprise appliance uses the standard API layout, setting only
+`githubServerUrl` is enough because the plugin derives the `/api/v3` endpoint automatically.
 
 ## What happens if my local manifest repository checkout already has changes?
 
@@ -72,6 +103,27 @@ zip archive before it attempts publishing. That check catches issues such as:
 - broken `AvailableLibraries` references
 - manifest platforms that do not exist in the XCFramework
 - `__MACOSX` metadata entries or unexpected top-level directories inside the zip
+
+## Why is there both `package/Package.swift` and `localPackage/Package.swift`?
+
+They serve different purposes:
+
+- `package/Package.swift`: the release manifest that points at the published binary target URL
+- `localPackage/Package.swift`: a local-only manifest that points at the assembled XCFramework by path
+
+SwiftPM requires remote binary targets to use `https`, so the local manifest exists mainly for
+consumer smoke tests and local integration checks.
+
+## Why not just run `swift build` against the local consumer sample?
+
+Because `swift build` compiles for the host platform by default.
+
+The sample XCFramework only declares iOS slices, so the correct smoke test is an iOS Simulator
+build via `xcodebuild`. The repository exposes this through:
+
+```bash
+./gradlew -p samples/kmp-library smokeTestIosConsumer
+```
 
 ## What happens if I rerun the same GitHub release tag?
 

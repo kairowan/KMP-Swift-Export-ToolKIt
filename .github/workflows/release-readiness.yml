@@ -1,0 +1,110 @@
+name: Release Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Semantic version to validate, for example 1.0.0"
+        required: false
+        type: string
+      skip_sample_pipeline:
+        description: "Skip sample packaging and consumer smoke tests"
+        required: false
+        type: boolean
+        default: false
+      skip_smoke_test:
+        description: "Skip the iOS consumer smoke test"
+        required: false
+        type: boolean
+        default: false
+      require_plugin_portal_credentials:
+        description: "Also require GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET"
+        required: false
+        type: boolean
+        default: false
+      require_sample_release_token:
+        description: "Also require GITHUB_TOKEN for sample release publishing"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release-readiness:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Resolve release version
+        id: release_version
+        run: |
+          if [ -n "${{ inputs.release_version }}" ]; then
+            version="${{ inputs.release_version }}"
+          else
+            version="$(bash ./scripts/current-release-version.sh)"
+          fi
+
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run release readiness sweep
+        run: |
+          args=(
+            "--version" "${RELEASE_VERSION}"
+          )
+
+          if [ "${SKIP_SAMPLE_PIPELINE}" = "true" ]; then
+            args+=("--skip-sample-pipeline")
+          fi
+
+          if [ "${SKIP_SMOKE_TEST}" = "true" ]; then
+            args+=("--skip-smoke-test")
+          fi
+
+          if [ "${REQUIRE_PLUGIN_PORTAL_CREDENTIALS}" = "true" ]; then
+            args+=(
+              "--require-env" "GRADLE_PUBLISH_KEY"
+              "--require-env" "GRADLE_PUBLISH_SECRET"
+            )
+          fi
+
+          if [ "${REQUIRE_SAMPLE_RELEASE_TOKEN}" = "true" ]; then
+            args+=("--require-env" "GITHUB_TOKEN")
+          fi
+
+          bash ./scripts/check-release-readiness.sh "${args[@]}"
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.value }}
+          SKIP_SAMPLE_PIPELINE: ${{ inputs.skip_sample_pipeline && 'true' || 'false' }}
+          SKIP_SMOKE_TEST: ${{ inputs.skip_smoke_test && 'true' || 'false' }}
+          REQUIRE_PLUGIN_PORTAL_CREDENTIALS: ${{ inputs.require_plugin_portal_credentials && 'true' || 'false' }}
+          REQUIRE_SAMPLE_RELEASE_TOKEN: ${{ inputs.require_sample_release_token && 'true' || 'false' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+
+      - name: Upload release readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-${{ steps.release_version.outputs.value }}
+          path: |
+            build/release-readiness/${{ steps.release_version.outputs.value }}
+            plugin/build/staging-repo
+            samples/kmp-library/build/kmpApplePackager/configuration/report.properties
+            samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
+            samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
+            samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+            samples/kmp-library/build/kmpApplePackager/release/publish.properties
+            samples/kmp-library/build/kmpApplePackager/release/support-assets.properties
+            samples/kmp-library/build/kmpApplePackager/release/assets
+            samples/kmp-library/build/kmpApplePackager/release/bundle
+            samples/kmp-library/build/kmpApplePackager/packageRepository/publish.properties
+            samples/kmp-library/build/kmpApplePackager/validation/report.properties

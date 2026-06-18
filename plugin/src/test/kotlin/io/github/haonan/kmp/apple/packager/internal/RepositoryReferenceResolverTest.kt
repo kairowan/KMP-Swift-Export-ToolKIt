@@ -28,4 +28,15 @@ class RepositoryReferenceResolverTest {
         assertTrue(reference.cloneSource.endsWith("/shared-package"))
         assertEquals(reference.cloneSource, reference.displayLocation)
     }
+
+    @Test
+    fun `resolves github slug against a custom server`() {
+        val reference = RepositoryReferenceResolver.resolve(
+            repository = "yourname/shared-package",
+            githubServerUrl = "https://github.example.com",
+        )
+
+        assertEquals("https://github.example.com/yourname/shared-package.git", reference.cloneSource)
+        assertEquals("https://github.example.com/yourname/shared-package", reference.displayLocation)
+    }
 }

@@ -21,6 +21,7 @@ import org.gradle.api.GradleException
  */
 internal class GithubApi(
     private val token: String,
+    private val apiUrl: String,
     private val requestTimeoutSeconds: Int,
     private val maxRetries: Int,
     private val onRetry: (String) -> Unit = {},
@@ -39,7 +40,7 @@ internal class GithubApi(
     ): GithubRelease {
         val existingResponse = sendJsonRequest(
             method = "GET",
-            url = "https://api.github.com/repos/$repo/releases/tags/$tag",
+            url = "${apiBaseUrl()}/repos/$repo/releases/tags/$tag",
             acceptNotFound = true,
         )
 
@@ -73,11 +74,26 @@ internal class GithubApi(
 
         val createResponse = sendJsonRequest(
             method = "POST",
-            url = "https://api.github.com/repos/$repo/releases",
+            url = "${apiBaseUrl()}/repos/$repo/releases",
             body = payload,
         )
 
         return mapper.readValue(createResponse.body(), GithubRelease::class.java)
+    }
+
+    fun getReleaseByTag(
+        repo: String,
+        tag: String,
+    ): GithubRelease {
+        val response = sendJsonRequest(
+            method = "GET",
+            url = "${apiBaseUrl()}/repos/$repo/releases/tags/$tag",
+            acceptNotFound = true,
+        )
+        if (response.statusCode() == 404) {
+            throw GradleException("GitHub release tag $tag does not exist in $repo.")
+        }
+        return mapper.readValue(response.body(), GithubRelease::class.java)
     }
 
     private fun updateRelease(
@@ -94,7 +110,7 @@ internal class GithubApi(
         )
         val response = sendJsonRequest(
             method = "PATCH",
-            url = "https://api.github.com/repos/$repo/releases/$releaseId",
+            url = "${apiBaseUrl()}/repos/$repo/releases/$releaseId",
             body = payload,
         )
         return mapper.readValue(response.body(), GithubRelease::class.java)
@@ -103,7 +119,7 @@ internal class GithubApi(
     fun deleteAsset(repo: String, assetId: Long) {
         val response = sendJsonRequest(
             method = "DELETE",
-            url = "https://api.github.com/repos/$repo/releases/assets/$assetId",
+            url = "${apiBaseUrl()}/repos/$repo/releases/assets/$assetId",
         )
         if (response.statusCode() !in 200..299) {
             throw GradleException(
@@ -169,6 +185,10 @@ internal class GithubApi(
             .timeout(Duration.ofSeconds(requestTimeoutSeconds.toLong()))
             .header("Authorization", "Bearer $token")
             .header("User-Agent", "kmp-apple-packager")
+    }
+
+    private fun apiBaseUrl(): String {
+        return apiUrl.trim().trimEnd('/')
     }
 
     private fun sendRequestWithRetry(

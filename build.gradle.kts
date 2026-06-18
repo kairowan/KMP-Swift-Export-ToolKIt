@@ -1,11 +1,17 @@
+val releaseVersion = providers.gradleProperty("releaseVersion")
+    .orElse("1.0.0-SNAPSHOT")
+
 plugins {
     base
 }
 
 group = "io.github.haonan"
-version = "0.1.0-SNAPSHOT"
+version = releaseVersion.get()
 
 allprojects {
+    group = rootProject.group
+    version = rootProject.version
+
     repositories {
         gradlePluginPortal()
         mavenCentral()

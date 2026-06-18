@@ -10,8 +10,12 @@ import java.io.File
 internal object RepositoryReferenceResolver {
     private val githubSlugPattern = Regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
-    fun resolve(repository: String): RepositoryReference {
+    fun resolve(
+        repository: String,
+        githubServerUrl: String = "https://github.com",
+    ): RepositoryReference {
         val value = repository.trim()
+        val normalizedGithubServerUrl = githubServerUrl.trim().trimEnd('/')
         return when {
             value.startsWith("/") || value.startsWith("./") || value.startsWith("../") || value.startsWith("~") -> {
                 val path = File(expandHome(value)).absoluteFile
@@ -25,13 +29,13 @@ internal object RepositoryReferenceResolver {
                 val slug = value.substringAfter("git@github.com:").removeSuffix(".git")
                 RepositoryReference(
                     cloneSource = value,
-                    displayLocation = "https://github.com/$slug",
+                    displayLocation = "$normalizedGithubServerUrl/$slug",
                 )
             }
 
             githubSlugPattern.matches(value) -> RepositoryReference(
-                cloneSource = "https://github.com/$value.git",
-                displayLocation = "https://github.com/$value",
+                cloneSource = "$normalizedGithubServerUrl/$value.git",
+                displayLocation = "$normalizedGithubServerUrl/$value",
             )
 
             else -> RepositoryReference(

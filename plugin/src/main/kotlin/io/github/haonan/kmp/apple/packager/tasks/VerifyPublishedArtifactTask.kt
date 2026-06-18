@@ -48,6 +48,12 @@ abstract class VerifyPublishedArtifactTask : DefaultTask() {
     abstract val artifactUrlOverride: Property<String>
 
     @get:Input
+    abstract val githubServerUrl: Property<String>
+
+    @get:Input
+    abstract val githubApiUrl: Property<String>
+
+    @get:Input
     @get:Optional
     abstract val githubRepo: Property<String>
 
@@ -110,6 +116,7 @@ abstract class VerifyPublishedArtifactTask : DefaultTask() {
             val artifactUrl = runCatching {
                 ArtifactLocationResolver.resolve(
                     artifactUrlOverride = artifactUrlOverride.orNull,
+                    githubServerUrl = githubServerUrl.get(),
                     githubRepo = githubRepo.orNull,
                     githubTag = githubTag.orNull,
                     assetName = archiveFileName.get(),
@@ -184,6 +191,8 @@ abstract class VerifyPublishedArtifactTask : DefaultTask() {
         val token = githubToken.orNull?.trim().orEmpty()
         if (assetId.isNotEmpty() && repo.isNotEmpty() && token.isNotEmpty()) {
             val target = GithubReleaseAssetDownloadResolver.resolve(
+                githubServerUrl = githubServerUrl.get(),
+                githubApiUrl = githubApiUrl.get(),
                 repo = repo,
                 assetId = assetId,
                 token = token,

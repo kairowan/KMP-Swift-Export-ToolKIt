@@ -13,6 +13,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve release version
+        id: release_version
+        run: |
+          version="$(bash ./scripts/current-release-version.sh)"
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -22,8 +28,14 @@ jobs:
       - name: Validate wrapper
         uses: gradle/actions/wrapper-validation@v4
 
+      - name: Verify version consistency
+        run: bash ./scripts/verify-version-consistency.sh ${{ steps.release_version.outputs.value }}
+
       - name: Build plugin
         run: ./gradlew :plugin:check
+
+      - name: Publish plugin to local staging repository
+        run: ./gradlew :plugin:publishAllPublicationsToPluginStagingRepository
 
       - name: Dry-run sample packager
         run: ./gradlew -p samples/kmp-library publishApplePackage
@@ -33,11 +45,24 @@ jobs:
           test -f samples/kmp-library/build/kmpApplePackager/configuration/report.properties
           test -f samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
           test -f samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
+          test -f samples/kmp-library/build/kmpApplePackager/release/support-assets.properties
           test -f samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
+          test -f samples/kmp-library/build/kmpApplePackager/release/assets/Shared-${RELEASE_VERSION}.Package.swift
+          test -f samples/kmp-library/build/kmpApplePackager/release/assets/Shared-${RELEASE_VERSION}.sha256
+          test -f samples/kmp-library/build/kmpApplePackager/release/assets/Shared-${RELEASE_VERSION}.package-metadata.json
+          test -f samples/kmp-library/build/kmpApplePackager/release/bundle/report.properties
+          test -f samples/kmp-library/build/kmpApplePackager/release/bundle/Shared-${RELEASE_VERSION}-release-bundle.zip
+          test -f samples/kmp-library/build/kmpApplePackager/release/bundle/Shared-${RELEASE_VERSION}-release-bundle/bundle-manifest.json
           ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' samples/kmp-library/build/kmpApplePackager/metadata/package-metadata.json
           ruby -e 'props = File.read(ARGV[0]); abort("artifact structure validation did not pass") unless props.include?("status=valid")' \
             samples/kmp-library/build/kmpApplePackager/artifactStructure/report.properties
-          python3 -c 'import zipfile; archive = "samples/kmp-library/build/kmpApplePackager/distributions/Shared-0.1.0.xcframework.zip"; offenders = [name for name in zipfile.ZipFile(archive).namelist() if name.startswith("__MACOSX/")]; (_ for _ in ()).throw(SystemExit(f"unexpected __MACOSX entries: {offenders}")) if offenders else None'
+          ruby -e 'props = File.read(ARGV[0]); abort("support asset dry-run status missing") unless props.include?("status=skipped")' \
+            samples/kmp-library/build/kmpApplePackager/release/support-assets.properties
+          ruby -e 'props = File.read(ARGV[0]); abort("release bundle was not assembled") unless props.include?("status=assembled")' \
+            samples/kmp-library/build/kmpApplePackager/release/bundle/report.properties
+          python3 -c 'import os, zipfile; version = os.environ["RELEASE_VERSION"]; archive = f"samples/kmp-library/build/kmpApplePackager/distributions/Shared-{version}.xcframework.zip"; offenders = [name for name in zipfile.ZipFile(archive).namelist() if name.startswith("__MACOSX/")]; (_ for _ in ()).throw(SystemExit(f"unexpected __MACOSX entries: {offenders}")) if offenders else None'
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.value }}
 
       - name: Local artifact download verification
         run: |
@@ -47,10 +72,15 @@ jobs:
           trap 'kill "$server_pid"' EXIT
 
           ./gradlew -p samples/kmp-library publishApplePackage --rerun-tasks \
-            -Pkmp.apple.packager.artifactUrlOverride=http://127.0.0.1:8765/Shared-0.1.0.xcframework.zip
+            -Pkmp.apple.packager.artifactUrlOverride=http://127.0.0.1:8765/Shared-${RELEASE_VERSION}.xcframework.zip
 
           ruby -e 'props = File.read(ARGV[0]); abort("artifact verification did not pass") unless props.include?("status=verified")' \
             samples/kmp-library/build/kmpApplePackager/artifactVerification/report.properties
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.value }}
+
+      - name: Smoke test generated Swift package consumer
+        run: ./gradlew -p samples/kmp-library smokeTestIosConsumer
 
       - name: Dry-run manifest repository sync
         run: |

@@ -7,21 +7,29 @@ package io.github.haonan.kmp.apple.packager.internal
  */
 internal object GithubUrls {
     fun releaseDownloadUrl(
+        githubServerUrl: String,
         repo: String,
         tag: String,
         assetName: String,
     ): String {
-        return "https://github.com/$repo/releases/download/$tag/$assetName"
+        val serverUrl = githubServerUrl.trim().trimEnd('/')
+        return "$serverUrl/$repo/releases/download/$tag/$assetName"
     }
 
     fun releaseAssetApiUrl(
+        githubApiUrl: String,
         repo: String,
         assetId: String,
     ): String {
-        return "https://api.github.com/repos/$repo/releases/assets/$assetId"
+        val apiUrl = githubApiUrl.trim().trimEnd('/')
+        return "$apiUrl/repos/$repo/releases/assets/$assetId"
     }
 
-    fun releasesPageUrl(repo: String): String {
-        return "https://github.com/$repo/releases"
+    fun releasesPageUrl(
+        githubServerUrl: String,
+        repo: String,
+    ): String {
+        val serverUrl = githubServerUrl.trim().trimEnd('/')
+        return "$serverUrl/$repo/releases"
     }
 }

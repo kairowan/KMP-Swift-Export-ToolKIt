@@ -30,11 +30,14 @@ abstract class ApplePackagerExtension @Inject constructor(
     abstract val githubMaxRetries: Property<Int>
     abstract val overwriteExistingReleaseAsset: Property<Boolean>
     abstract val verifyPublishedArtifact: Property<Boolean>
+    abstract val publishReleaseSupportAssets: Property<Boolean>
     abstract val artifactDownloadTimeoutSeconds: Property<Int>
     abstract val artifactDownloadMaxRetries: Property<Int>
     abstract val failOnDirtyManifestRepository: Property<Boolean>
     abstract val xcodeConfiguration: Property<String>
     abstract val assembleTaskName: Property<String>
+    abstract val githubServerUrl: Property<String>
+    abstract val githubApiUrl: Property<String>
     abstract val githubRepo: Property<String>
     abstract val githubTag: Property<String>
     abstract val githubToken: Property<String>
@@ -70,10 +73,22 @@ abstract class ApplePackagerExtension @Inject constructor(
         githubMaxRetries.convention(2)
         overwriteExistingReleaseAsset.convention(false)
         verifyPublishedArtifact.convention(true)
+        publishReleaseSupportAssets.convention(true)
         artifactDownloadTimeoutSeconds.convention(300)
         artifactDownloadMaxRetries.convention(2)
         failOnDirtyManifestRepository.convention(true)
         xcodeConfiguration.convention("release")
+        githubServerUrl.convention("https://github.com")
+        githubApiUrl.convention(
+            githubServerUrl.map { serverUrl ->
+                val normalizedServerUrl = serverUrl.trim().trimEnd('/')
+                if (normalizedServerUrl.equals("https://github.com", ignoreCase = true)) {
+                    "https://api.github.com"
+                } else {
+                    "$normalizedServerUrl/api/v3"
+                }
+            }
+        )
         githubToken.convention(providers.environmentVariable("GITHUB_TOKEN"))
         publishRelease.convention(true)
         publishManifestRepository.convention(false)

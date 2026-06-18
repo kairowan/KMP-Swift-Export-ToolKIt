@@ -1,6 +1,7 @@
 import Shared
 
 public enum SmokeConsumer {
-    public static func load() {}
+    public static func load() -> String {
+        Greeting().text()
+    }
 }
-

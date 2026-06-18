@@ -16,8 +16,10 @@ class ManifestRendererTest {
                         minimumVersion = "16.0",
                     )
                 ),
-                artifactUrl = "https://github.com/example/shared/releases/download/0.1.0/Shared-0.1.0.xcframework.zip",
-                checksum = "abc123",
+                binaryTarget = RemoteSwiftBinaryTargetSpec(
+                    artifactUrl = "https://github.com/example/shared/releases/download/1.0.0/Shared-1.0.0.xcframework.zip",
+                    checksum = "abc123",
+                ),
             )
         )
 
@@ -47,8 +49,10 @@ class ManifestRendererTest {
                         minimumVersion = "16.0",
                     ),
                 ),
-                artifactUrl = "https://github.com/example/shared/releases/download/0.1.0/Shared-0.1.0.xcframework.zip",
-                checksum = "abc123",
+                binaryTarget = RemoteSwiftBinaryTargetSpec(
+                    artifactUrl = "https://github.com/example/shared/releases/download/1.0.0/Shared-1.0.0.xcframework.zip",
+                    checksum = "abc123",
+                ),
             )
         )
 
@@ -69,13 +73,38 @@ class ManifestRendererTest {
                         minimumVersion = "16.0",
                     )
                 ),
-                artifactUrl = "https://example.com/releases/Shared\\Kit.zip",
-                checksum = "abc\"123",
+                binaryTarget = RemoteSwiftBinaryTargetSpec(
+                    artifactUrl = "https://example.com/releases/Shared\\Kit.zip",
+                    checksum = "abc\"123",
+                ),
             )
         )
 
         assertTrue(manifest.contains("name: \"Shared \\\"Kit\\\"\""))
         assertTrue(manifest.contains("url: \"https://example.com/releases/Shared\\\\Kit.zip\""))
         assertTrue(manifest.contains("checksum: \"abc\\\"123\""))
+    }
+
+    @Test
+    fun `renders local binary target manifest`() {
+        val manifest = ManifestRenderer.render(
+            PackageManifestSpec(
+                packageName = "Shared",
+                swiftToolsVersion = "6.0",
+                platforms = listOf(
+                    SwiftPackagePlatformSpec(
+                        swiftPlatformName = "iOS",
+                        minimumVersion = "16.0",
+                    )
+                ),
+                binaryTarget = LocalSwiftBinaryTargetSpec(
+                    artifactPath = "../xcframework/Shared.xcframework",
+                ),
+            )
+        )
+
+        assertTrue(manifest.contains("path: \"../xcframework/Shared.xcframework\""))
+        assertTrue(!manifest.contains("checksum:"))
+        assertTrue(!manifest.contains("url:"))
     }
 }

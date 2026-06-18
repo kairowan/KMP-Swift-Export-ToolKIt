@@ -18,16 +18,18 @@ internal data class GithubReleaseAssetDownloadTarget(
  */
 internal object GithubReleaseAssetDownloadResolver {
     fun resolve(
+        githubServerUrl: String,
+        githubApiUrl: String,
         repo: String,
         assetId: String,
         token: String,
         browserDownloadUrl: String?,
     ): GithubReleaseAssetDownloadTarget {
         val displayUrl = browserDownloadUrl?.trim().orEmpty().ifEmpty {
-            GithubUrls.releasesPageUrl(repo)
+            GithubUrls.releasesPageUrl(githubServerUrl, repo)
         }
         return GithubReleaseAssetDownloadTarget(
-            downloadUrl = GithubUrls.releaseAssetApiUrl(repo, assetId),
+            downloadUrl = GithubUrls.releaseAssetApiUrl(githubApiUrl, repo, assetId),
             displayUrl = displayUrl,
             headers = mapOf(
                 "Accept" to "application/octet-stream",

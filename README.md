@@ -26,9 +26,12 @@ This plugin turns that workflow into a repeatable release pipeline.
 - Validate XCFramework slices and zip layout before publishing
 - Compute SwiftPM checksums automatically
 - Generate `Package.swift` for binary targets
+- Generate an additional local path-based `Package.swift` for consumer smoke tests
 - Configure SwiftPM deployment targets for iOS and additional Apple platforms
 - Fail fast on invalid publish configuration before the heavy build work starts
 - Publish archives to GitHub Releases
+- Publish `Package.swift`, checksum, and metadata snapshot support assets to the same GitHub Release
+- Support both GitHub.com and GitHub Enterprise release endpoints
 - Reuse already-published GitHub release assets when the checksum matches, and fail safely on mismatched reruns by default
 - Sync `Package.swift` into a dedicated repository or release branch
 - Support both regular git checkouts and git worktrees when syncing manifest repositories
@@ -55,13 +58,15 @@ kmp-apple-packager/
 
 ```kotlin
 plugins {
-    id("io.github.haonan.kmp.apple.packager") version "0.1.0"
+    id("io.github.haonan.kmp.apple.packager") version "1.0.0"
 }
 
 kmpApplePackager {
     packageName.set("Shared")
-    version.set("0.1.0")
+    version.set("1.0.0")
     artifactModule.set(":shared")
+    githubServerUrl.set("https://github.com")
+    githubApiUrl.set("https://api.github.com")
     githubRepo.set("yourname/shared-package")
     manifestRepository.set("yourname/shared-package-spm")
     manifestRepositoryBranch.set("main")
@@ -76,6 +81,7 @@ kmpApplePackager {
     githubMaxRetries.set(2)
     overwriteExistingReleaseAsset.set(false)
     verifyPublishedArtifact.set(true)
+    publishReleaseSupportAssets.set(true)
     artifactDownloadTimeoutSeconds.set(300)
     artifactDownloadMaxRetries.set(2)
 }
@@ -94,7 +100,10 @@ Then run:
 - `computeApplePackageChecksum`
 - `validateApplePackagerConfiguration`
 - `generateApplePackageManifest`
+- `generateAppleLocalPackageManifest`
 - `publishGithubRelease`
+- `publishGithubReleaseSupportAssets`
+- `assembleAppleReleaseBundle`
 - `publishPackageManifestRepository`
 - `validateSwiftPmPackage`
 - `verifyPublishedArtifact`
@@ -102,7 +111,7 @@ Then run:
 - `writeApplePackageMetadata`
 - `publishApplePackage`
 
-## Local MVP Notes
+## Local Dry-Run Notes
 
 For local dry-runs, you can disable remote publishing and validation:
 
@@ -122,8 +131,24 @@ platform slices that actually exist inside the XCFramework you publish.
 
 Each run also writes a stable JSON metadata file at
 `build/kmpApplePackager/metadata/package-metadata.json`, which is useful for CI steps
-that need the checksum, resolved artifact URL, release asset status, validation status,
-or manifest repo result.
+that need the checksum, resolved artifact URL, release asset status, release support asset
+status, validation status, manifest repo result, or the captured Java / Gradle / Swift /
+Xcode environment snapshot.
+
+For local consumer validation, the pipeline also writes a path-based manifest at
+`build/kmpApplePackager/localPackage/Package.swift`. It points at the assembled local
+XCFramework instead of an `https` binary target URL, which makes it suitable for
+`xcodebuild -scheme SmokeConsumer -destination 'generic/platform=iOS Simulator' build`
+style smoke tests in CI and on a developer machine.
+
+The release pipeline also stages the support assets it plans to upload under
+`build/kmpApplePackager/release/assets/`, even during dry-runs. That directory contains the
+named manifest, checksum, and metadata snapshot files, which makes pre-release audits and
+workflow artifact inspection much simpler.
+
+It also assembles a release evidence bundle under `build/kmpApplePackager/release/bundle/`.
+That bundle collects the archive, manifests, staged release support assets, report files, and a
+bundle manifest into one stable directory plus zip file for CI artifact retention.
 
 For production pipelines, the operational defaults are now explicit:
 
@@ -131,6 +156,7 @@ For production pipelines, the operational defaults are now explicit:
 - `githubRequestTimeoutSeconds=120` with `githubMaxRetries=2` for GitHub Releases API calls
 - `overwriteExistingReleaseAsset=false` so reruns on the same tag never replace a published zip unless you opt in explicitly
 - `verifyPublishedArtifact=true` with `artifactDownloadTimeoutSeconds=300` and `artifactDownloadMaxRetries=2` for post-publish download verification
+- `publishReleaseSupportAssets=true` so each GitHub Release also carries a named manifest, checksum, and metadata snapshot
 - `failOnDirtyManifestRepository=true` so local manifest checkouts are rejected if they already contain unrelated changes
 
 If the same GitHub release tag already contains an asset with the target file name, the plugin now:
@@ -144,20 +170,34 @@ git worktree via `manifestRepositoryPath`. Managed remote checkouts are refreshe
 sync, and manifest commit identity falls back to `git config user.name/user.email` if you do not
 set `manifestCommitUserName` and `manifestCommitUserEmail` explicitly.
 
+If your release pipeline runs on GitHub Enterprise, configure `githubServerUrl`. The plugin
+derives `githubApiUrl` automatically as `<server>/api/v3`, or you can override it explicitly if
+your appliance exposes a different API root.
+
 ## Samples
 
 - `samples/kmp-library`: a minimal KMP library that applies the plugin from this repository via `includeBuild("../..")`
-- `samples/ios-consumer`: a small Swift package that demonstrates the expected consumer-side import
+- `samples/ios-consumer`: a small Swift package that demonstrates the expected consumer-side import and can build against the generated local package in CI
+
+The sample build also exposes `./gradlew -p samples/kmp-library smokeTestIosConsumer`,
+which generates the local path-based manifest and builds the Swift consumer through
+`xcodebuild` for iOS Simulator.
 
 ## Docs
 
 - [Quick Start](docs/quick-start.md)
 - [CI Guide](docs/ci.md)
+- [Compatibility](docs/compatibility.md)
 - [FAQ](docs/faq.md)
+- [Release Readiness Workflow](.github/workflows/release-readiness.yml)
+- [Plugin Release](docs/plugin-release.md)
+- [Release Checklist](docs/release-checklist.md)
 
 ## Status
 
-Early MVP. The goal is to make SwiftPM distribution for KMP libraries boring, predictable, and automatable.
+Release-ready for `1.0.0` once repository secrets, tags, and publishing destinations are wired for
+your environment. The core goal remains the same: make SwiftPM distribution for KMP libraries
+boring, predictable, and automatable.
 
 ## Inspiration
 

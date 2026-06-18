@@ -9,8 +9,7 @@ internal data class PackageManifestSpec(
     val packageName: String,
     val swiftToolsVersion: String,
     val platforms: List<SwiftPackagePlatformSpec>,
-    val artifactUrl: String,
-    val checksum: String,
+    val binaryTarget: SwiftBinaryTargetSpec,
 )
 
 /**
@@ -22,6 +21,22 @@ internal data class SwiftPackagePlatformSpec(
     val swiftPlatformName: String,
     val minimumVersion: String,
 )
+
+/**
+ * Represents either a remote SwiftPM binary target or a local path-based one.
+ *
+ * Author: kairowan
+ */
+internal sealed interface SwiftBinaryTargetSpec
+
+internal data class RemoteSwiftBinaryTargetSpec(
+    val artifactUrl: String,
+    val checksum: String,
+) : SwiftBinaryTargetSpec
+
+internal data class LocalSwiftBinaryTargetSpec(
+    val artifactPath: String,
+) : SwiftBinaryTargetSpec
 
 /**
  * Renders the minimal `Package.swift` needed for SwiftPM binary distribution.
@@ -51,8 +66,16 @@ internal object ManifestRenderer {
             appendLine("    targets: [")
             appendLine("        .binaryTarget(")
             appendLine("            name: \"${spec.packageName.toSwiftStringLiteral()}\",")
-            appendLine("            url: \"${spec.artifactUrl.toSwiftStringLiteral()}\",")
-            appendLine("            checksum: \"${spec.checksum.toSwiftStringLiteral()}\"")
+            when (val binaryTarget = spec.binaryTarget) {
+                is RemoteSwiftBinaryTargetSpec -> {
+                    appendLine("            url: \"${binaryTarget.artifactUrl.toSwiftStringLiteral()}\",")
+                    appendLine("            checksum: \"${binaryTarget.checksum.toSwiftStringLiteral()}\"")
+                }
+
+                is LocalSwiftBinaryTargetSpec -> {
+                    appendLine("            path: \"${binaryTarget.artifactPath.toSwiftStringLiteral()}\"")
+                }
+            }
             appendLine("        )")
             appendLine("    ]")
             appendLine(")")

@@ -54,6 +54,9 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
     abstract val artifactUrlOverride: Property<String>
 
     @get:Input
+    abstract val githubServerUrl: Property<String>
+
+    @get:Input
     @get:Optional
     abstract val githubRepo: Property<String>
 
@@ -71,6 +74,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val manifestFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val localManifestFile: RegularFileProperty
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -93,6 +100,16 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
     abstract val artifactStructureReportFile: RegularFileProperty
 
     @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val releaseSupportAssetsReportFile: RegularFileProperty
+
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val releaseBundleReportFile: RegularFileProperty
+
+    @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val metadataFile: RegularFileProperty
 
@@ -101,6 +118,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         val checksum = checksumFile.get().asFile.readText().trim()
         val artifactUrl = ArtifactLocationResolver.resolve(
             artifactUrlOverride = artifactUrlOverride.orNull,
+            githubServerUrl = githubServerUrl.get(),
             githubRepo = githubRepo.orNull,
             githubTag = githubTag.orNull,
             assetName = archiveFileName.get(),
@@ -115,6 +133,18 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
         val validationStatus = readProperty(validationReportFile.get().asFile, "status") ?: "unknown"
         val artifactVerificationStatus = readProperty(artifactVerificationReportFile.get().asFile, "status") ?: "unknown"
         val artifactStructureStatus = readProperty(artifactStructureReportFile.get().asFile, "status") ?: "unknown"
+        val releaseSupportAssetsStatus = releaseSupportAssetsReportFile.orNull?.asFile?.let { file ->
+            readProperty(file, "status")
+        } ?: "notCaptured"
+        val releaseSupportAssetsSummary = releaseSupportAssetsReportFile.orNull?.asFile?.let { file ->
+            buildReleaseSupportAssetsSummary(file)
+        }.orEmpty()
+        val releaseBundleStatus = releaseBundleReportFile.orNull?.asFile?.let { file ->
+            readProperty(file, "status")
+        } ?: "notCaptured"
+        val releaseBundleArchive = releaseBundleReportFile.orNull?.asFile?.let { file ->
+            readProperty(file, "archive")
+        }.orEmpty()
         val platforms = buildList {
             minimumIosVersion.orNull.toPlatformSummary("iOS")?.let(::add)
             minimumMacosVersion.orNull.toPlatformSummary("macOS")?.let(::add)
@@ -133,6 +163,7 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |artifactUrl: $artifactUrl
             |platforms: $platforms
             |manifest: ${manifestFile.get().asFile.absolutePath}
+            |localManifest: ${localManifestFile.get().asFile.absolutePath}
             |published: $published
             |releaseAssetStatus: $releaseAssetStatus
             |manifestRepositoryStatus: $manifestRepositoryStatus
@@ -143,6 +174,10 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             |validation: $validationStatus
             |artifactStructure: $artifactStructureStatus
             |artifactVerification: $artifactVerificationStatus
+            |releaseSupportAssets: $releaseSupportAssetsStatus
+            |releaseSupportAssetsDetail: $releaseSupportAssetsSummary
+            |releaseBundle: $releaseBundleStatus
+            |releaseBundleArchive: $releaseBundleArchive
             |metadata: ${metadataFile.get().asFile.absolutePath}
             """.trimMargin()
         )
@@ -163,5 +198,22 @@ abstract class PrintReleaseSummaryTask : DefaultTask() {
             return null
         }
         return "$swiftPlatformName $version"
+    }
+
+    private fun buildReleaseSupportAssetsSummary(file: File): String {
+        val assetCount = readProperty(file, "assetCount")?.toIntOrNull() ?: 0
+        if (assetCount <= 0) {
+            return readProperty(file, "reason").orEmpty()
+        }
+        return (0 until assetCount).mapNotNull { index ->
+            val name = readProperty(file, "asset${index}Name").orEmpty()
+            val status = readProperty(file, "asset${index}Status").orEmpty()
+            val type = readProperty(file, "asset${index}Type").orEmpty()
+            if (name.isBlank()) {
+                null
+            } else {
+                if (type.isBlank()) "$name:$status" else "$type=$name:$status"
+            }
+        }.joinToString(", ")
     }
 }

@@ -11,6 +11,8 @@ internal data class ApplePackagerConfigurationSpec(
     val packageName: String,
     val packageVersion: String,
     val artifactUrlOverride: String?,
+    val githubServerUrl: String,
+    val githubApiUrl: String,
     val githubRepo: String?,
     val githubTag: String?,
     val githubTokenConfigured: Boolean,
@@ -31,6 +33,7 @@ internal data class ApplePackagerConfigurationSpec(
     val githubMaxRetries: Int,
     val overwriteExistingReleaseAsset: Boolean,
     val verifyPublishedArtifact: Boolean,
+    val publishReleaseSupportAssets: Boolean,
     val artifactDownloadTimeoutSeconds: Int,
     val artifactDownloadMaxRetries: Int,
     val failOnDirtyManifestRepository: Boolean,
@@ -51,6 +54,15 @@ internal data class ConfigurationValidationResult(
     val errors: List<String>,
     val warnings: List<String>,
 )
+
+internal fun ConfigurationValidationResult.merge(
+    other: ConfigurationValidationResult,
+): ConfigurationValidationResult {
+    return ConfigurationValidationResult(
+        errors = errors + other.errors,
+        warnings = warnings + other.warnings,
+    )
+}
 
 /**
  * Performs fail-fast validation for the user-facing DSL so CI fails early and predictably.
@@ -81,6 +93,8 @@ internal object ConfigurationValidator {
         }
 
         val artifactUrlOverride = spec.artifactUrlOverride.normalized()
+        val githubServerUrl = spec.githubServerUrl.trim()
+        val githubApiUrl = spec.githubApiUrl.trim()
         val githubRepo = spec.githubRepo.normalized()
         val githubTag = spec.githubTag.normalized()
         val manifestRepository = spec.manifestRepository.normalized()
@@ -98,6 +112,14 @@ internal object ConfigurationValidator {
 
         if (artifactUrlOverride.isNotEmpty() && !isSupportedArtifactUrl(artifactUrlOverride)) {
             errors += "artifactUrlOverride must be an absolute http or https URL."
+        }
+
+        if (!isSupportedArtifactUrl(githubServerUrl)) {
+            errors += "githubServerUrl must be an absolute http or https URL."
+        }
+
+        if (!isSupportedArtifactUrl(githubApiUrl)) {
+            errors += "githubApiUrl must be an absolute http or https URL."
         }
 
         if (githubRepo.isNotEmpty() && !githubRepoPattern.matches(githubRepo)) {
@@ -129,6 +151,9 @@ internal object ConfigurationValidator {
             }
             if (!spec.verifyPublishedArtifact) {
                 warnings += "verifyPublishedArtifact=false disables the post-publish download and checksum verification step."
+            }
+            if (!spec.publishReleaseSupportAssets) {
+                warnings += "publishReleaseSupportAssets=false skips uploading Package.swift, checksum, and metadata snapshot assets to the GitHub release."
             }
             if (artifactUrlOverride.isNotEmpty()) {
                 warnings += "artifactUrlOverride is set, so the generated Package.swift will not point at the uploaded GitHub release asset."
